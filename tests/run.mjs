@@ -306,6 +306,27 @@ async function browserSuite(pw) {
     const tag = await p.locator('.testtag').count();
     ok(isTest ? tag === 1 && (await p.title()).startsWith('TEST') : tag === 0, isTest ? 'TEST BUILD tag and title shown' : 'no TEST BUILD tag on production');
 
+    // every layout preset fits every canvas size: slots inside the canvas, no overlaps, whole pixels, sequential slot numbers
+    const presetIssues = await p.evaluate(() => {
+      const bad = [], sizes = [[1280, 720], [1920, 1080], [3840, 2160], [1080, 1920], [2560, 1080]];
+      for (const [w, h] of sizes) {
+        __pip.setCanvasSize(w, h, false);
+        __pip.templates.forEach((name, i) => {
+          __pip.loadTemplate(i);
+          const s = __pip.doc.objects.filter(o => o.slot);
+          s.forEach((o, j) => {
+            if (o.x < 0 || o.y < 0 || o.x + o.w > w + 1e-6 || o.y + o.h > h + 1e-6) bad.push(`${name} @${w}x${h}: ${o.name} outside canvas`);
+            if (![o.x, o.y, o.w, o.h].every(Number.isInteger)) bad.push(`${name} @${w}x${h}: ${o.name} not whole pixels`);
+            if (o.slotNum !== j + 1) bad.push(`${name}: slot numbers out of order`);
+            s.slice(j + 1).forEach(q => { if (o.x < q.x + q.w && q.x < o.x + o.w && o.y < q.y + q.h && q.y < o.y + o.h) bad.push(`${name} @${w}x${h}: ${o.name} overlaps ${q.name}`); });
+          });
+        });
+      }
+      __pip.setCanvasSize(1920, 1080, false);
+      return { bad, count: __pip.templates.length };
+    });
+    ok(presetIssues.count >= 15 && presetIssues.bad.length === 0, `all ${presetIssues.count} layout presets fit 720p, 1080p, 4K, portrait and ultrawide` + (presetIssues.bad.length ? ': ' + presetIssues.bad.slice(0, 5).join('; ') : ''));
+    ok(await p.locator('#layoutsBtn').isVisible(), 'Layouts button visible in the top bar');
     await p.evaluate(() => __pip.loadTemplate(2)); await rendered();
     ok((await docOf()).objects.filter(o => o.slot).length === 4, '2 x 2 template loads 4 slots');
     const box = await p.locator('#view').boundingBox(), n0 = (await docOf()).objects.length;

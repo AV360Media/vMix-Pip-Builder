@@ -8,15 +8,53 @@ function bgObject() {
   return b;
 }
 function slotObj(n, name, x, y, w, h) { var o = PIPE.newObject('rrect', x, y, w, h, { name: name, slotNum: n }); return o; }
+// Equal 16:9 boxes, cols x rows, centred in the 1920x1080 frame. count < cols*rows leaves the last row short and centred.
+function gridSlots(cols, rows, count, gap, margin) {
+  count = count || cols * rows; gap = gap == null ? 32 : gap; margin = margin == null ? 48 : margin;
+  var w = Math.min((1920 - 2 * margin - (cols - 1) * gap) / cols, ((1080 - 2 * margin - (rows - 1) * gap) / rows) * 16 / 9), h = w * 9 / 16;
+  var th = rows * h + (rows - 1) * gap, y0 = (1080 - th) / 2, out = [];
+  for (var r = 0, n = 0; r < rows; r++) {
+    var inRow = Math.min(cols, count - n), tw = inRow * w + (inRow - 1) * gap, x0 = (1920 - tw) / 2;
+    for (var c = 0; c < inRow; c++, n++) out.push(slotObj(n + 1, 'Cam ' + (n + 1), x0 + c * (w + gap), y0 + r * (h + gap), w, h));
+  }
+  return out;
+}
+function bigPlus(count, side) {
+  // One large box plus `count` small boxes stacked on the right (side 'right') or along the bottom ('bottom').
+  var g = 24, m = 48, out;
+  if (side === 'bottom') {
+    var sw = (1920 - 2 * m - (count - 1) * g) / count, sh = sw * 9 / 16, bh = 1080 - 2 * m - g - sh, bw = bh * 16 / 9;
+    out = [slotObj(1, 'Main', (1920 - bw) / 2, m, bw, bh)];
+    for (var i = 0; i < count; i++) out.push(slotObj(i + 2, 'Cam ' + (i + 1), m + i * (sw + g), m + bh + g, sw, sh));
+    return out;
+  }
+  var h2 = (1080 - 2 * m - (count - 1) * g) / count, w2 = h2 * 16 / 9, w1 = 1920 - 2 * m - g - w2, h1 = w1 * 9 / 16;
+  if (h1 > 1080 - 2 * m) { h1 = 1080 - 2 * m; w1 = h1 * 16 / 9; }
+  var tw = w1 + g + w2, x0 = (1920 - tw) / 2;
+  out = [slotObj(1, 'Main', x0, (1080 - h1) / 2, w1, h1)];
+  for (var j = 0; j < count; j++) out.push(slotObj(j + 2, 'Cam ' + (j + 1), x0 + w1 + g, m + j * (h2 + g), w2, h2));
+  return out;
+}
+function withBg(f) { return function () { return [bgObject()].concat(f()); }; }
 var TEMPLATES = [
   { id: 'pip', name: 'Single PIP corner', note: 'Overlay over program. Transparent surround: round the video with vMix layer border radius.', make: function () { return [slotObj(1, 'PIP', 1280, 692, 576, 324)]; } },
-  { id: 'sbs', name: 'Side by side', make: function () { return [bgObject(), slotObj(1, 'Cam 1', 60, 293, 880, 495), slotObj(2, 'Cam 2', 980, 293, 880, 495)]; } },
-  { id: 'quad', name: '2 × 2', make: function () { return [bgObject(), slotObj(1, 'Cam 1', 112, 56, 832, 468), slotObj(2, 'Cam 2', 976, 56, 832, 468), slotObj(3, 'Cam 3', 112, 556, 832, 468), slotObj(4, 'Cam 4', 976, 556, 832, 468)]; } },
-  { id: 'three', name: '3 up', make: function () { return [bgObject(), slotObj(1, 'Cam 1', 48, 374, 592, 333), slotObj(2, 'Cam 2', 664, 374, 592, 333), slotObj(3, 'Cam 3', 1280, 374, 592, 333)]; } },
+  { id: 'sbs', name: '2 box side by side', make: function () { return [bgObject(), slotObj(1, 'Cam 1', 60, 293, 880, 495), slotObj(2, 'Cam 2', 980, 293, 880, 495)]; } },
+  { id: 'quad', name: '4 box', make: function () { return [bgObject(), slotObj(1, 'Cam 1', 112, 56, 832, 468), slotObj(2, 'Cam 2', 976, 56, 832, 468), slotObj(3, 'Cam 3', 112, 556, 832, 468), slotObj(4, 'Cam 4', 976, 556, 832, 468)]; } },
+  { id: 'three', name: '3 box', make: function () { return [bgObject(), slotObj(1, 'Cam 1', 48, 374, 592, 333), slotObj(2, 'Cam 2', 664, 374, 592, 333), slotObj(3, 'Cam 3', 1280, 374, 592, 333)]; } },
   { id: 'speaker', name: 'Speaker + slides', make: function () {
     var bar = PIPE.newObject('line', 1344, 497, 512, 6, { name: 'Accent bar', slot: false, caps: 'round' }); bar.style.fill.color = '#3d9bff'; bar.style.fill.alpha = 1;
     return [bgObject(), slotObj(1, 'Slides', 64, 189, 1248, 702), slotObj(2, 'Remote Speaker', 1344, 189, 512, 288), bar];
   } },
+  { id: 'two-stack', name: '2 box stacked', make: withBg(function () { return gridSlots(1, 2); }) },
+  { id: 'two-full', name: '2 box large', make: withBg(function () { return gridSlots(2, 1, 2, 16, 16); }) },
+  { id: 'quad-tight', name: '4 box tight', make: withBg(function () { return gridSlots(2, 2, 4, 8, 0); }) },
+  { id: 'five', name: '5 box', make: withBg(function () { return gridSlots(3, 2, 5); }) },
+  { id: 'six', name: '6 box', make: withBg(function () { return gridSlots(3, 2); }) },
+  { id: 'nine', name: '9 box', make: withBg(function () { return gridSlots(3, 3, 9, 24); }) },
+  { id: 'one-two', name: '1 + 2 right', make: withBg(function () { return bigPlus(2, 'right'); }) },
+  { id: 'one-three', name: '1 + 3 right', make: withBg(function () { return bigPlus(3, 'right'); }) },
+  { id: 'one-three-b', name: '1 + 3 bottom', make: withBg(function () { return bigPlus(3, 'bottom'); }) },
+  { id: 'one-four-b', name: '1 + 4 bottom', make: withBg(function () { return bigPlus(4, 'bottom'); }) },
   { id: 'blank', name: 'Blank', make: function () { return []; } }
 ];
 function scaleObj(o, k, ox, oy) {
@@ -275,6 +313,7 @@ function setView(v) { ui.view = v; $$('#viewSeg button').forEach(function (b) { 
 $$('#tools [data-tool]').forEach(function (b) { b.addEventListener('click', function () { setTool(b.dataset.tool); }); });
 $$('#tools [data-align]').forEach(function (b) { b.addEventListener('click', function () { align(b.dataset.align); }); });
 $('#tplBtn').addEventListener('click', openTemplates);
+$('#layoutsBtn').addEventListener('click', openTemplates);
 $('#dupBtn').addEventListener('click', function () { duplicate(20, 20); });
 $('#delBtn').addEventListener('click', deleteSel);
 $('#helpBtn').addEventListener('click', openHelp);
@@ -327,5 +366,5 @@ function buildAll() { syncCanvasUi(); buildObjList(); lastSelKey = '?'; selectio
   requestRender(false);
   if (restored) toast('Restored your last session from autosave');
   // test hooks (used by the automated checks; harmless otherwise)
-  window.__pip = { testBuild: TESTBUILD, keys: { auto: LS_AUTO, presets: LS_PRESETS, ui: LS_UI }, get doc() { return doc; }, set doc(d) { doc = PIPE.migrate(d); commit(); buildAll(); }, sel: function (ids) { sel = ids; selectionChanged(); }, render: R, exportPack: exportPack, undo: undo, redo: redo, hist: hist, setCanvasSize: setCanvasSize, loadTemplate: function (i) { loadTemplate(TEMPLATES[i]); }, view: view };
+  window.__pip = { testBuild: TESTBUILD, keys: { auto: LS_AUTO, presets: LS_PRESETS, ui: LS_UI }, get doc() { return doc; }, set doc(d) { doc = PIPE.migrate(d); commit(); buildAll(); }, sel: function (ids) { sel = ids; selectionChanged(); }, render: R, exportPack: exportPack, undo: undo, redo: redo, hist: hist, setCanvasSize: setCanvasSize, loadTemplate: function (i) { loadTemplate(TEMPLATES[i]); }, templates: TEMPLATES.map(function (t) { return t.name; }), view: view };
 })();

@@ -108,7 +108,7 @@ dialog{background:var(--panel);color:var(--text);border:1px solid var(--line2);b
 dialog::backdrop{background:#000b}
 dialog .dh{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line);font-weight:600}
 dialog .db{padding:14px;max-height:75vh;overflow:auto}
-.tgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.tgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
 .tcard{border:1px solid var(--line2);border-radius:6px;padding:8px;cursor:pointer;background:#10131a}
 .tcard:hover{border-color:var(--accent)}
 .tcard canvas{width:100%;display:block;border-radius:3px;background:#000}
@@ -135,6 +135,7 @@ dialog .db{padding:14px;max-height:75vh;overflow:auto}
       </select>
       <span id="customWH" class="hidden"><input id="cw" type="number" min="16" max="8192" step="1"> × <input id="ch" type="number" min="16" max="8192" step="1"> <button id="applyWH">Set</button></span>
       <span class="dims" id="dims" title="Exact export size in pixels">1920 × 1080 px</span>
+      <button id="layoutsBtn" title="Layout presets for this canvas size (T)">Layouts…</button>
     </div>
     <div class="grp seg" id="viewSeg" title="What the canvas shows (1, 2, 3)">
       <button data-view="back">Back plate</button><button data-view="front">Front mask</button><button data-view="combined">Combined</button>
@@ -229,7 +230,7 @@ dialog .db{padding:14px;max-height:75vh;overflow:auto}
   <div class="mnote">PNGs are exact canvas size, straight alpha.</div>
 </div>
 
-<dialog id="tplDlg"><div class="dh"><span>Layout templates</span><button data-close>Close</button></div><div class="db"><p class="note">Loading a template replaces the current objects (undo brings them back). Everything stays editable.</p><div class="tgrid" id="tplGrid"></div></div></dialog>
+<dialog id="tplDlg"><div class="dh"><span>Layout presets</span><button data-close>Close</button></div><div class="db"><p class="note">Presets fit whatever canvas size is set at the top. Loading one replaces the current objects (undo brings them back). Everything stays editable.</p><div class="tgrid" id="tplGrid"></div></div></dialog>
 <dialog id="helpDlg"><div class="dh"><span>Keyboard shortcuts</span><button data-close>Close</button></div><div class="db"><div class="keys" id="keyList"></div></div></dialog>
 <input type="file" id="fileOpen" accept=".json,application/json" class="hidden">
 <input type="file" id="fileSample" accept="image/*" class="hidden">
