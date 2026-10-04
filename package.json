@@ -1,0 +1,12 @@
+{
+  "name": "vmix-pip-builder",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Design vMix PIP back plates and front masks, export pixel-exact straight-alpha PNGs, and get the layer values and API commands for every slot",
+  "scripts": {
+    "build": "node build.mjs",
+    "dev": "node build.mjs --watch",
+    "test": "node tests/run.mjs index.test.html",
+    "promote": "node tests/run.mjs index.test.html --require-browser && node -e \"require('fs').copyFileSync('index.test.html','index.html')\" && node tests/guard-production.mjs --same"
+  }
+}

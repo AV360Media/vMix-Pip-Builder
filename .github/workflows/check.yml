@@ -1,0 +1,34 @@
+# Fails when index.test.html is not the current build of src/, when the test build fails its checks,
+# or when index.html (production) changed without being a promoted copy of index.test.html.
+name: Check test build
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm run build
+      - run: git diff --exit-code index.test.html || (echo "::error::index.test.html is out of date. Run npm run build and commit it." && exit 1)
+      - name: Production only changes by promotion
+        run: node tests/guard-production.mjs "${{ github.event.pull_request.base.sha || github.event.before }}" "${{ github.sha }}"
+      - name: Install Chromium for the browser checks
+        run: npm install --no-save playwright@1.56.1 && npx playwright install --with-deps chromium
+      - name: Test build (index.test.html)
+        run: npm test
+      - name: Production (index.html)
+        run: node tests/run.mjs index.html --quick
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-output
+          path: test-output/

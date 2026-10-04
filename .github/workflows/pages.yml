@@ -1,0 +1,53 @@
+# Publishes the committed index.html (production) and index.test.html (test) to GitHub Pages
+# whenever either changes on main. index.test.html is rebuilt with every change; index.html only
+# changes when the test build is promoted, so production moves only on that command.
+# Does nothing until Pages is turned on (Settings > Pages > Source: GitHub Actions).
+name: Publish to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths: [index.html, index.test.html]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      enabled: ${{ steps.pages.outputs.enabled }}
+    steps:
+      - id: pages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "$(gh api "repos/${{ github.repository }}/pages" --jq .build_type 2>/dev/null)" = "workflow" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::GitHub Pages is not set to GitHub Actions for this repository, so nothing was published. Turn it on in Settings > Pages."
+          fi
+  deploy:
+    needs: check
+    if: needs.check.outputs.enabled == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: mkdir -p site && cp index.html index.test.html site/
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@v4

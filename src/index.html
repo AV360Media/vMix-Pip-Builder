@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>vMix PIP Builder</title>
+<style>
+:root{
+  --bg:#0c0e12; --panel:#151820; --panel2:#1b1f29; --line:#272c38; --line2:#323848;
+  --text:#d5dae4; --dim:#8b93a5; --faint:#5d6578; --accent:#3d9bff; --accent2:#2a6fc0;
+  --warn:#f0b43c; --err:#ff5c5c; --ok:#3ccf7a; --sel:#3d9bff; --input:#10131a;
+  --mono:ui-monospace,"Cascadia Mono","Consolas","SF Mono",Menlo,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:12px/1.35 system-ui,"Segoe UI",Roboto,sans-serif;overflow:hidden}
+button,input,select,textarea{font:inherit;color:inherit}
+button{background:var(--panel2);border:1px solid var(--line2);border-radius:4px;padding:4px 8px;cursor:pointer;white-space:nowrap}
+button:hover{border-color:#4a5368;background:#212634}
+button:active{background:#262c3b}
+button.primary{background:var(--accent2);border-color:var(--accent)}
+button.primary:hover{background:#3380d8}
+button.on{background:#1d3757;border-color:var(--accent);color:#fff}
+button:disabled{opacity:.4;cursor:default}
+input,select,textarea{background:var(--input);border:1px solid var(--line2);border-radius:3px;padding:3px 5px;min-width:0}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent)}
+input[type=number]{font-family:var(--mono);width:100%}
+input[type=checkbox]{accent-color:var(--accent);margin:0 4px 0 0;vertical-align:-2px}
+input[type=color]{padding:0 2px;height:24px;width:34px;cursor:pointer}
+label{color:var(--dim)}
+#app{display:grid;height:100vh;grid-template-columns:52px 1fr 340px;grid-template-rows:40px 1fr 24px;grid-template-areas:"top top top" "tools stage props" "status status status"}
+#top{grid-area:top;display:flex;align-items:center;gap:8px;padding:0 8px;background:var(--panel);border-bottom:1px solid var(--line);overflow-x:auto;overflow-y:hidden}
+#top .brand{font-weight:700;letter-spacing:.3px;color:#fff;margin-right:4px;white-space:nowrap}
+.testtag{font-size:10px;font-weight:700;letter-spacing:.08em;color:#fff;background:#e5484d;border-radius:4px;padding:2px 6px;white-space:nowrap}
+#top .grp{display:flex;align-items:center;gap:4px;padding-right:8px;border-right:1px solid var(--line);white-space:nowrap}
+#top .grp:last-child{border-right:0}
+#top .spacer{flex:1}
+#top input[type=number]{width:62px}
+.dims{font-family:var(--mono);color:#fff;background:#0a0c10;border:1px solid var(--line);padding:2px 6px;border-radius:3px}
+.seg{display:inline-flex}
+.seg button{border-radius:0;margin-left:-1px}
+.seg button:first-child{border-radius:4px 0 0 4px;margin-left:0}
+.seg button:last-child{border-radius:0 4px 4px 0}
+#tools{grid-area:tools;background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;padding:6px 0;gap:3px;overflow-y:auto}
+#tools button{width:38px;height:34px;padding:0;display:flex;align-items:center;justify-content:center;border-color:transparent;background:transparent}
+#tools button:hover{background:var(--panel2);border-color:var(--line2)}
+#tools button.on{background:#1d3757;border-color:var(--accent)}
+#tools svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.6}
+#tools hr{width:30px;border:0;border-top:1px solid var(--line);margin:4px 0}
+#stage{grid-area:stage;position:relative;overflow:hidden;background:#0a0b0e}
+#view{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+#badge{position:absolute;right:8px;top:8px;background:#000a;border:1px solid var(--line);padding:2px 8px;border-radius:10px;color:var(--dim);font-family:var(--mono);font-size:11px;pointer-events:none}
+#props{grid-area:props;background:var(--panel);border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+#objPanel{flex:0 0 auto;max-height:34%;display:flex;flex-direction:column;border-bottom:1px solid var(--line)}
+.phead{display:flex;align-items:center;justify-content:space-between;padding:6px 10px;color:var(--dim);text-transform:uppercase;font-size:10.5px;letter-spacing:.8px}
+#objList{overflow-y:auto;padding:0 4px 6px}
+.orow{display:flex;align-items:center;gap:4px;padding:3px 6px;border-radius:3px;cursor:pointer;border:1px solid transparent;user-select:none}
+.orow:hover{background:var(--panel2)}
+.orow.sel{background:#1a2c45;border-color:#2c5487}
+.orow.hid .oname{opacity:.4}
+.orow .oname{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.orow .badge{font-family:var(--mono);font-size:10px;background:#263b5c;color:#cfe3ff;border-radius:3px;padding:0 4px}
+.orow .badge.deco{background:#333a4a;color:#aab}
+.orow .ic{width:18px;height:18px;display:flex;align-items:center;justify-content:center;color:var(--faint);border-radius:3px}
+.orow .ic.act{color:var(--text)}
+.orow .ic:hover{background:#2a3040}
+.orow.drop{border-top:2px solid var(--accent)}
+#tabs{display:flex;border-bottom:1px solid var(--line);padding:0 4px}
+#tabs button{flex:1;border:0;border-bottom:2px solid transparent;border-radius:0;background:transparent;padding:7px 2px;color:var(--dim)}
+#tabs button.on{color:#fff;border-bottom-color:var(--accent)}
+#tabBody{flex:1;overflow-y:auto;padding:8px 10px 40px}
+.sec{border:1px solid var(--line);border-radius:5px;margin-bottom:8px;background:#12151c}
+.sec>.sh{display:flex;align-items:center;gap:6px;padding:6px 8px;font-weight:600;color:#e8ecf3;border-bottom:1px solid var(--line)}
+.sec>.sh .r{margin-left:auto;display:flex;gap:4px}
+.sec>.sb{padding:7px 8px;display:flex;flex-direction:column;gap:6px}
+.row{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;align-items:end}
+.row.c2{grid-template-columns:1fr 1fr}
+.row.c3{grid-template-columns:repeat(3,1fr)}
+.row.c6{grid-template-columns:repeat(6,1fr)}
+.f{display:flex;flex-direction:column;gap:2px;min-width:0}
+.f>label{font-size:10.5px}
+.f.inline{flex-direction:row;align-items:center;gap:6px}
+.colorf{display:flex;gap:4px;align-items:center}
+.colorf input[type=text]{width:72px;font-family:var(--mono)}
+.note{color:var(--dim);font-size:11px}
+.warnbox{border-left:3px solid var(--warn);background:#2a2412;padding:5px 8px;border-radius:3px;color:#f3dfb0;cursor:pointer}
+.warnbox.error{border-color:var(--err);background:#2d1515;color:#ffc9c9}
+.item{border:1px solid var(--line);border-radius:4px;padding:6px;background:#0f1218;display:flex;flex-direction:column;gap:5px}
+.kv{display:grid;grid-template-columns:auto 1fr auto;gap:3px 8px;font-family:var(--mono);font-size:11.5px;align-items:center}
+.kv .k{color:var(--dim);font-family:system-ui,sans-serif}
+.kv .v{color:#fff;user-select:all}
+.cmd{display:flex;gap:4px;align-items:center}
+.cmd code{flex:1;font-family:var(--mono);font-size:10.5px;color:#b9d6ff;background:#0a0c10;border:1px solid var(--line);border-radius:3px;padding:3px 5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;user-select:all}
+.cmd button{padding:2px 6px;font-size:11px}
+table.vt{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:11px}
+table.vt th{color:var(--dim);font-weight:400;text-align:right;padding:2px 4px;font-family:system-ui,sans-serif}
+table.vt td{text-align:right;padding:2px 4px;border-top:1px solid var(--line)}
+table.vt td:first-child,table.vt th:first-child{text-align:left}
+#status{grid-area:status;display:flex;align-items:center;gap:16px;padding:0 10px;background:var(--panel);border-top:1px solid var(--line);font-family:var(--mono);font-size:11px;color:var(--dim);white-space:nowrap;overflow:hidden}
+#status b{color:var(--text);font-weight:500}
+#status .warn{color:var(--warn);cursor:pointer}
+#status .err{color:var(--err);cursor:pointer}
+.menu{position:absolute;background:var(--panel2);border:1px solid var(--line2);border-radius:5px;box-shadow:0 8px 30px #000a;padding:4px;z-index:50;display:none;min-width:220px}
+.menu.open{display:block}
+.menu button{display:block;width:100%;text-align:left;border:0;background:transparent;padding:6px 10px}
+.menu button:hover{background:#263044}
+.menu .mnote{color:var(--faint);font-size:10.5px;padding:0 10px 4px}
+dialog{background:var(--panel);color:var(--text);border:1px solid var(--line2);border-radius:8px;padding:0;max-width:880px;width:calc(100vw - 32px)}
+dialog::backdrop{background:#000b}
+dialog .dh{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line);font-weight:600}
+dialog .db{padding:14px;max-height:75vh;overflow:auto}
+.tgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.tcard{border:1px solid var(--line2);border-radius:6px;padding:8px;cursor:pointer;background:#10131a}
+.tcard:hover{border-color:var(--accent)}
+.tcard canvas{width:100%;display:block;border-radius:3px;background:#000}
+.tcard div{margin-top:6px}
+.keys{display:grid;grid-template-columns:auto 1fr;gap:4px 14px}
+.keys kbd{font-family:var(--mono);background:#0a0c10;border:1px solid var(--line2);border-radius:3px;padding:1px 5px;color:#fff;white-space:nowrap}
+#toast{position:fixed;left:50%;bottom:40px;transform:translateX(-50%);background:#1d2433;border:1px solid var(--line2);padding:8px 14px;border-radius:6px;box-shadow:0 8px 30px #000a;display:none;z-index:99;max-width:70vw}
+#toast.show{display:block}
+#toast.err{border-color:var(--err)}
+.hidden{display:none!important}
+::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-thumb{background:#2a3040;border-radius:5px;border:2px solid var(--panel)}::-webkit-scrollbar-track{background:transparent}
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="top">
+    <span class="brand">PIP Builder</span>
+    <div class="grp">
+      <select id="canvasPreset" title="Canvas size">
+        <option value="1920x1080">1920 × 1080</option>
+        <option value="3840x2160">3840 × 2160</option>
+        <option value="1280x720">1280 × 720</option>
+        <option value="custom">Custom</option>
+      </select>
+      <span id="customWH" class="hidden"><input id="cw" type="number" min="16" max="8192" step="1"> × <input id="ch" type="number" min="16" max="8192" step="1"> <button id="applyWH">Set</button></span>
+      <span class="dims" id="dims" title="Exact export size in pixels">1920 × 1080 px</span>
+    </div>
+    <div class="grp seg" id="viewSeg" title="What the canvas shows (1, 2, 3)">
+      <button data-view="back">Back plate</button><button data-view="front">Front mask</button><button data-view="combined">Combined</button>
+    </div>
+    <div class="grp">
+      <button id="openBtn" title="Open project JSON (Ctrl+O)">Open</button>
+      <button id="saveBtn" title="Save project JSON (Ctrl+S)">Save</button>
+      <button id="exportMenuBtn">Export ▾</button>
+      <button id="packBtn" class="primary" title="Export Pack ZIP (Ctrl+E)">Export Pack</button>
+    </div>
+    <div class="grp">
+      <select id="bgMode" title="Work area background">
+        <option value="checker">Checkerboard</option>
+        <option value="dark">Dark</option>
+        <option value="black">Black</option>
+        <option value="sample">Sample frame</option>
+        <option value="camera">Live camera</option>
+      </select>
+      <button id="loadSample" title="Load a still frame or image to judge the design against">Load frame…</button>
+      <label class="f inline" title="Show the sample frame or camera inside the slots instead of test cards"><input type="checkbox" id="sampleInSlots">in slots</label>
+      <label class="f inline" title="Show test sources in the slots (Combined view)"><input type="checkbox" id="showSources" checked>sources</label>
+    </div>
+    <div class="grp">
+      <label class="f inline" title="Snap to pixel grid and guides"><input type="checkbox" id="snapOn" checked>Snap</label>
+      <select id="gridSize" title="Snap grid in pixels"><option value="1">1 px</option><option value="2">2 px</option><option value="4">4 px</option><option value="8">8 px</option><option value="10">10 px</option><option value="16">16 px</option><option value="20">20 px</option><option value="40">40 px</option></select>
+      <label class="f inline"><input type="checkbox" id="showGrid">Grid</label>
+      <label class="f inline"><input type="checkbox" id="showGuides" checked>Guides</label>
+      <select id="safeMode" title="Safe area overlay"><option value="off">Safe: off</option><option value="modern">Safe 93/90 %</option><option value="legacy">Safe 90/80 %</option></select>
+    </div>
+    <div class="grp">
+      <button id="undoBtn" title="Undo (Ctrl+Z)">Undo</button><button id="redoBtn" title="Redo (Ctrl+Shift+Z)">Redo</button>
+    </div>
+  </header>
+
+  <nav id="tools">
+    <button data-tool="select" title="Select / move (V)"><svg viewBox="0 0 24 24"><path d="M5 3l14 8-6 1.5L10 19z"/></svg></button>
+    <button data-tool="hand" title="Pan (H, or hold Space)"><svg viewBox="0 0 24 24"><path d="M8 13V5.5a1.5 1.5 0 013 0V12M11 11V4a1.5 1.5 0 013 0v7M14 11V5.5a1.5 1.5 0 013 0V14c0 4-2.5 7-6 7s-5-2-6.5-5L3 12.5a1.5 1.5 0 012.5-1.5L8 14"/></svg></button>
+    <hr>
+    <button data-tool="rrect" title="Rounded rectangle slot (R)"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="3.5"/></svg></button>
+    <button data-tool="squircle" title="Squircle slot (Q)"><svg viewBox="0 0 24 24"><path d="M12 5c7 0 9 1.5 9 7s-2 7-9 7-9-1.5-9-7 2-7 9-7z"/></svg></button>
+    <button data-tool="ellipse" title="Ellipse / circle slot (E)"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="9" ry="7"/></svg></button>
+    <button data-tool="rect" title="Rectangle (M)"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12"/></svg></button>
+    <button data-tool="line" title="Line / divider bar (L)"><svg viewBox="0 0 24 24"><path d="M3 12h18" stroke-width="3" stroke-linecap="round"/></svg></button>
+    <hr>
+    <button id="tplBtn" title="Layout templates (T)"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="8" height="7" rx="1"/><rect x="13" y="4" width="8" height="7" rx="1"/><rect x="3" y="13" width="8" height="7" rx="1"/><rect x="13" y="13" width="8" height="7" rx="1"/></svg></button>
+    <hr>
+    <button data-align="left" title="Align left"><svg viewBox="0 0 24 24"><path d="M4 3v18M8 7h10v4H8zM8 14h6v4H8z"/></svg></button>
+    <button data-align="hcenter" title="Align horizontal centres"><svg viewBox="0 0 24 24"><path d="M12 3v18M6 7h12v4H6zM8 14h8v4H8z"/></svg></button>
+    <button data-align="right" title="Align right"><svg viewBox="0 0 24 24"><path d="M20 3v18M6 7h10v4H6zM10 14h6v4h-6z"/></svg></button>
+    <button data-align="top" title="Align top"><svg viewBox="0 0 24 24"><path d="M3 4h18M7 8h4v10H7zM14 8h4v6h-4z"/></svg></button>
+    <button data-align="vcenter" title="Align vertical centres"><svg viewBox="0 0 24 24"><path d="M3 12h18M7 6h4v12H7zM14 8h4v8h-4z"/></svg></button>
+    <button data-align="bottom" title="Align bottom"><svg viewBox="0 0 24 24"><path d="M3 20h18M7 6h4v10H7zM14 10h4v6h-4z"/></svg></button>
+    <button data-align="disth" title="Distribute horizontally (equal gaps)"><svg viewBox="0 0 24 24"><path d="M3 4v16M21 4v16M8 8h3v8H8zM13 8h3v8h-3z"/></svg></button>
+    <button data-align="distv" title="Distribute vertically (equal gaps)"><svg viewBox="0 0 24 24"><path d="M4 3h16M4 21h16M8 8h8v3H8zM8 13h8v3H8z"/></svg></button>
+    <hr>
+    <button id="dupBtn" title="Duplicate (Ctrl+D)"><svg viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="1.5"/><path d="M16 8V5.5A1.5 1.5 0 0014.5 4h-9A1.5 1.5 0 004 5.5v9A1.5 1.5 0 005.5 16H8"/></svg></button>
+    <button id="delBtn" title="Delete (Del)"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg></button>
+    <button id="helpBtn" title="Keyboard shortcuts (?)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 015 0c0 1.8-2.5 2-2.5 4M12 17h.01"/></svg></button>
+  </nav>
+
+  <main id="stage"><canvas id="view"></canvas><div id="badge"></div></main>
+
+  <aside id="props">
+    <div id="objPanel">
+      <div class="phead"><span>Objects</span><span><button id="upBtn" title="Bring forward (Ctrl+])">▲</button> <button id="downBtn" title="Send backward (Ctrl+[)">▼</button></span></div>
+      <div id="objList"></div>
+    </div>
+    <div id="tabs">
+      <button data-tab="object">Object</button><button data-tab="style">Style</button><button data-tab="vmix">vMix</button><button data-tab="mask">Mask</button><button data-tab="project">Project</button>
+    </div>
+    <div id="tabBody"></div>
+  </aside>
+
+  <footer id="status">
+    <span>Cursor <b id="stCursor">–</b></span>
+    <span>Canvas <b id="stCanvas"></b></span>
+    <span id="stSel"></span>
+    <span>Zoom <b id="stZoom"></b></span>
+    <span id="stRender"></span>
+    <span id="stSave"></span>
+    <span id="stWarn"></span>
+  </footer>
+</div>
+
+<div class="menu" id="exportMenu">
+  <button data-exp="back">Back plate PNG</button>
+  <button data-exp="front">Front mask PNG</button>
+  <button data-exp="preview">Combined preview PNG</button>
+  <button data-exp="pack">Export Pack (ZIP)</button>
+  <button data-exp="setup">vMix_setup.txt only</button>
+  <button data-exp="alpha">Alpha test PNG</button>
+  <div class="mnote">PNGs are exact canvas size, straight alpha.</div>
+</div>
+
+<dialog id="tplDlg"><div class="dh"><span>Layout templates</span><button data-close>Close</button></div><div class="db"><p class="note">Loading a template replaces the current objects (undo brings them back). Everything stays editable.</p><div class="tgrid" id="tplGrid"></div></div></dialog>
+<dialog id="helpDlg"><div class="dh"><span>Keyboard shortcuts</span><button data-close>Close</button></div><div class="db"><div class="keys" id="keyList"></div></div></dialog>
+<input type="file" id="fileOpen" accept=".json,application/json" class="hidden">
+<input type="file" id="fileSample" accept="image/*" class="hidden">
+<input type="file" id="filePresets" accept=".json,application/json" class="hidden">
+<video id="camVideo" class="hidden" muted playsinline></video>
+<div id="toast"></div>
+
+<script id="engine-src">
+<!--#include js/engine.js-->
+</script>
+<script>
+(function () {
+'use strict';
+<!--#include js/state.js-->
+<!--#include js/interact.js-->
+<!--#include js/fields.js-->
+<!--#include js/panels.js-->
+<!--#include js/io.js-->
+})();
+</script>
+</body>
+</html>
