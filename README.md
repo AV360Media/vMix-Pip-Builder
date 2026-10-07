@@ -36,6 +36,8 @@ Design the art that sits behind and in front of vMix source layers, export pixel
    - `vMix_setup.txt`
    - `alpha_test.png`
 
+**New** in the top bar starts a blank project at the same canvas size, keeping your vMix connection settings. Undo brings the previous project back.
+
 Everything autosaves in the browser after each change. Use **Save** (Ctrl+S) for anything you want to keep.
 
 ## Build the input in vMix
@@ -56,6 +58,15 @@ Everything autosaves in the browser after each change. Use **Save** (Ctrl+S) for
    - Leave the front mask layer at Zoom 1, Pan 0 and no crop.
 
 Layer order in vMix: layer 10 draws over layer 9, and so on. The input's own image, the back plate, is under every layer. A single input holds at most 10 layers, so the limit is 9 sources plus the front mask. The app flags anything over that.
+
+## Cropping a source
+
+Select a slot and press **C** (or **Crop on canvas** in the Crop section of the Object tab).
+- Drag the orange edges to trim the picture. The whole source shows faintly around the box so you can see what you're cutting.
+- Drag inside the box to slide the picture under it.
+- Press Enter or Esc when done.
+
+The picture keeps its size and position while you crop, so the box shrinks to what's left. You can also type Left / Right / Top / Bottom percentages of the whole source. **Remove crop** grows the box back to the whole picture. The crop goes to vMix in the layer's Crop values, so nothing else changes on the vMix side.
 
 ## The three exports
 
@@ -160,6 +171,7 @@ Automated checks run on every test pack (1280×720, 1920×1080 and 3840×2160, p
 | Ctrl+L / Ctrl+H | Lock / hide |
 | 1, 2, 3 | Back plate / front mask / combined view |
 | K | Lock / unlock box proportions |
+| C | Crop the selected slot (Enter or Esc when done) |
 | G / T / ? | Grid / layout presets / all shortcuts |
 | Ctrl+0 / Ctrl+1 | Fit / 100% |
 | Ctrl+S / Ctrl+O / Ctrl+E | Save / open / Export Pack |

@@ -54,7 +54,12 @@ cvs.addEventListener('pointerdown', function (e) {
     drag = { kind: 'create', type: tool, x0: sx0, y0: sy0, obj: null };
     return;
   }
-  var hnd = hitHandle(p.x, p.y);
+  var hnd = hitHandle(p.x, p.y), co = cropSlot();
+  if (co) {
+    if (hnd) { drag = { kind: 'crop', h: hnd, P: sourceRect(co), start: { x: co.x, y: co.y, w: co.w, h: co.h }, id: co.id, moved: false }; return; }
+    if (p.x >= co.x && p.x <= co.x + co.w && p.y >= co.y && p.y <= co.y + co.h) { drag = { kind: 'cropPan', P: sourceRect(co), px: p.x, py: p.y, id: co.id, moved: false }; return; }
+    endCrop();
+  }
   if (hnd) {
     var o = firstSel();
     drag = { kind: 'resize', h: hnd, start: { x: o.x, y: o.y, w: o.w, h: o.h }, px: p.x, py: p.y, id: o.id, moved: false };
@@ -130,6 +135,24 @@ cvs.addEventListener('pointermove', function (e) {
     drag.starts.forEach(function (s) { var o = objById(s.id); o.x = s.x + offx; o.y = s.y + offy; });
     syncFields(); requestRender(true); draw(); return;
   }
+  if (drag.kind === 'crop') { // move the slot edges over a fixed picture; the crop follows
+    var oc = objById(drag.id), P0 = drag.P, sc = drag.start, hc = drag.h, MIN = 8;
+    var cL = sc.x, cT = sc.y, cR = sc.x + sc.w, cB = sc.y + sc.h, qx = snapVal(p.x), qy = snapVal(p.y);
+    if (hc.indexOf('w') >= 0) cL = Math.max(P0.x, Math.min(qx, cR - MIN));
+    if (hc.indexOf('e') >= 0) cR = Math.min(P0.x + P0.w, Math.max(qx, cL + MIN));
+    if (hc.indexOf('n') >= 0) cT = Math.max(P0.y, Math.min(qy, cB - MIN));
+    if (hc.indexOf('s') >= 0) cB = Math.min(P0.y + P0.h, Math.max(qy, cT + MIN));
+    setCropFromBox(oc, P0, { x: cL, y: cT, w: cR - cL, h: cB - cT });
+    drag.moved = true; syncFields(); requestRender(true); draw(); return;
+  }
+  if (drag.kind === 'cropPan') { // slide the picture under the slot
+    var op = objById(drag.id), Pp = drag.P;
+    var nx = Pp.x + (p.x - drag.px), ny = Pp.y + (p.y - drag.py);
+    if (ui.snap) { nx = Math.round(nx); ny = Math.round(ny); }
+    nx = Math.min(op.x, Math.max(op.x + op.w - Pp.w, nx)); ny = Math.min(op.y, Math.max(op.y + op.h - Pp.h, ny));
+    setCropFromBox(op, { x: nx, y: ny, w: Pp.w, h: Pp.h }, { x: op.x, y: op.y, w: op.w, h: op.h });
+    drag.moved = true; syncFields(); requestRender(true); draw(); return;
+  }
   if (drag.kind === 'resize') {
     var o2 = objById(drag.id), st = drag.start, h = drag.h;
     var L = st.x, T2 = st.y, Rr = st.x + st.w, B = st.y + st.h;
@@ -182,6 +205,7 @@ function endDrag() {
     }
     setTool('select'); selectionChanged(); commit(); buildObjList();
   } else if (k === 'move' || k === 'resize') { if (d.moved || d.dup) commit(); if (d.dup) buildObjList(); }
+  else if (k === 'crop' || k === 'cropPan') { if (d.moved) { commit(); buildTab(); } }
   else if (k === 'marquee') selectionChanged();
   draw();
 }
@@ -200,11 +224,32 @@ cvs.addEventListener('wheel', function (e) {
 
 // ---------------- object ops ----------------
 function nextSlotNum() { var m = 0; doc.objects.forEach(function (o) { if (o.slot) m = Math.max(m, o.slotNum || 0); }); return m + 1; }
+// ---------------- crop ----------------
+// Whole (uncropped) source picture of a slot, in canvas px, as vMix places it.
+function sourceRect(o) { var vm = PIPE.vmixFor(doc, o), kx = doc.canvas.w / vm.outW, ky = doc.canvas.h / vm.outH; return { x: vm.placed.x * kx, y: vm.placed.y * ky, w: vm.placed.w * kx, h: vm.placed.h * ky }; }
+// Make the slot exactly rect b over picture P: the picture keeps its size and position, the crop follows.
+function setCropFromBox(o, P, b) {
+  function f(v) { return v < 1e-9 ? 0 : v; }
+  function g(v) { var r = Math.round(v); return Math.abs(v - r) < 1e-6 ? r : v; } // keep whole pixels whole after float clamping
+  b = { x: g(b.x), y: g(b.y), w: g(b.w), h: g(b.h) };
+  o.x = b.x; o.y = b.y; o.w = b.w; o.h = b.h;
+  o.src.crop = { l: f((b.x - P.x) / P.w), t: f((b.y - P.y) / P.h), r: f((P.x + P.w - b.x - b.w) / P.w), b: f((P.y + P.h - b.y - b.h) / P.h) };
+}
+function cropSlot() { var o = cropId && sel.length === 1 ? objById(cropId) : null; return o && o.id === sel[0] ? o : null; }
+function startCrop() {
+  var o = firstSel();
+  if (!o || sel.length !== 1 || !o.slot || o.locked) { toast('Select one unlocked video slot to crop it.'); return; }
+  cropId = o.id; setTool('select'); buildTab(); draw();
+  toast('Crop: drag the orange edges to trim the picture, drag inside to move it. Enter or Esc when done.', false, 6000);
+}
+function endCrop() { if (!cropId) return; cropId = null; buildTab(); draw(); }
+function toggleCrop() { if (cropSlot()) endCrop(); else startCrop(); }
+
 // Proportion lock (on by default). Shift flips it for the current drag. Lines never lock.
 function aspectLocked(e, o) { return (ui.lockAspect !== false) !== !!(e && e.shiftKey) && (!o || o.type !== 'line'); }
 // Ratio to hold while locked: a slot within 1 % of its source shape snaps to the exact source ratio, so 16:9 boxes don't drift after rounding.
 function lockRatio(o, w, h) {
-  var r = w / h, sa = o.slot ? PIPE.aspectOf(o.src) : 0;
+  var r = w / h, sa = o.slot ? PIPE.croppedAspect(o.src) : 0;
   return sa && Math.abs(r / sa - 1) < 0.01 ? sa : r;
 }
 function drawAspect(type, e) {
@@ -317,7 +362,9 @@ document.addEventListener('keydown', function (e) {
   if (k === 'ArrowUp') { e.preventDefault(); nudge(0, -step); return; }
   if (k === 'ArrowDown') { e.preventDefault(); nudge(0, step); return; }
   if (k === 'Delete' || k === 'Backspace') { e.preventDefault(); deleteSel(); return; }
+  if ((k === 'Escape' || k === 'Enter') && cropSlot()) { endCrop(); return; }
   if (k === 'Escape') { sel = []; selectionChanged(); setTool('select'); draw(); return; }
+  if (k === 'c' || k === 'C') { toggleCrop(); return; }
   if (k === ' ') { if (!spaceDown) { spaceDown = true; cvs.style.cursor = 'grab'; } e.preventDefault(); return; }
   var map = { v: 'select', h: 'hand', r: 'rrect', q: 'squircle', e: 'ellipse', m: 'rect', l: 'line' };
   if (map[k.toLowerCase()]) { setTool(map[k.toLowerCase()]); return; }
@@ -333,7 +380,7 @@ var SHORTCUTS = [
   ['Arrows', 'Nudge 1 px'], ['Shift + Arrows', 'Nudge 10 px'], ['Ctrl+D', 'Duplicate'], ['Alt + drag', 'Duplicate while moving'], ['Del / Backspace', 'Delete'],
   ['Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y', 'Undo / redo'], ['Ctrl+A', 'Select all'], ['Shift + click', 'Add to selection'],
   ['Ctrl+] / Ctrl+[', 'Bring forward / send backward (add Shift: to front / back)'], ['Ctrl+L / Ctrl+H', 'Lock / hide'],
-  ['K', 'Lock / unlock box proportions'], ['Shift + resize', 'Break (or keep) proportions for one drag'], ['Alt + drag handle', 'Resize from centre'], ['Shift + drag', 'Constrain move to one axis'],
+  ['K', 'Lock / unlock box proportions'], ['C', 'Crop the selected slot (Enter or Esc when done)'], ['Shift + resize', 'Break (or keep) proportions for one drag'], ['Alt + drag handle', 'Resize from centre'], ['Shift + drag', 'Constrain move to one axis'],
   ['1  2  3', 'View back plate / front mask / combined'], ['G', 'Toggle grid'], ['T', 'Templates'],
   ['Ctrl+0 / Ctrl+1', 'Fit / 100%'], ['Ctrl+ +/-, wheel', 'Zoom'], ['Ctrl+S / Ctrl+O', 'Save / open project'], ['Ctrl+E', 'Export Pack'], ['Esc', 'Deselect']
 ];

@@ -49,7 +49,7 @@ var PIPE = (function () {
       cornerStyle: 'round', smooth: 4, caps: 'butt',
       plane: 'back', locked: false, hidden: false,
       style: defaultStyle(),
-      src: { aspect: '16:9', cw: 16, ch: 9, mode: 'fill', source: '', layer: 0 }
+      src: { aspect: '16:9', cw: 16, ch: 9, mode: 'fill', source: '', layer: 0, crop: { l: 0, t: 0, r: 0, b: 0 } }
     };
     if (type === 'line') {
       o.style.stroke.enabled = false; o.style.shadows = []; o.style.knockout = false;
@@ -533,6 +533,15 @@ var PIPE = (function () {
     if (src.aspect === 'custom') return Math.max(0.01, +src.cw || 16) / Math.max(0.01, +src.ch || 9);
     return ASPECTS[src.aspect] || 16 / 9;
   }
+  // User crop of the source, as fractions of the source width / height trimmed from each side.
+  function cropOf(src) {
+    var c = src && src.crop || {}, k = function (v) { v = +v || 0; return v < 0 ? 0 : v > 0.98 ? 0.98 : v; };
+    var l = k(c.l), r = k(c.r), t = k(c.t), b = k(c.b);
+    if (l + r > 0.98) { var sx = 0.98 / (l + r); l *= sx; r *= sx; }
+    if (t + b > 0.98) { var sy = 0.98 / (t + b); t *= sy; b *= sy; }
+    return { l: l, t: t, r: r, b: b };
+  }
+  function croppedAspect(src) { var c = cropOf(src); return aspectOf(src) * (1 - c.l - c.r) / (1 - c.t - c.b); }
   function sortedSlots(doc) {
     return slotsOf(doc).slice().sort(function (a, b) { return (a.slotNum || 0) - (b.slotNum || 0) || doc.objects.indexOf(a) - doc.objects.indexOf(b); });
   }
@@ -552,21 +561,25 @@ var PIPE = (function () {
     var v = doc.vmix, CW = doc.canvas.w, CH = doc.canvas.h, OW = +v.outW || CW, OH = +v.outH || CH;
     var sx = OW / CW, sy = OH / CH;
     var x = o.x * sx, y = o.y * sy, w = o.w * sx, h = o.h * sy;
-    var A = aspectOf(o.src), fw, fh;
+    var A = aspectOf(o.src), fw, fh, uc = cropOf(o.src);
     if (A >= OW / OH) { fw = OW; fh = OW / A; } else { fh = OH; fw = OH * A; }
+    // The user crop leaves a region rw x rh (at zoom 1) that is fitted or filled into the slot.
+    var rw = fw * (1 - uc.l - uc.r), rh = fh * (1 - uc.t - uc.b);
     var fillMode = !o.src || o.src.mode !== 'fit';
-    var zoom = fillMode ? Math.max(w / fw, h / fh) : Math.min(w / fw, h / fh);
-    var pw = fw * zoom, ph = fh * zoom, cx = x + w / 2, cy = y + h / 2;
+    var zoom = fillMode ? Math.max(w / rw, h / rh) : Math.min(w / rw, h / rh);
+    var pw = fw * zoom, ph = fh * zoom;
+    // Centre the kept region on the slot; the layer itself (uncropped) is what Pan positions.
+    var cx = x + w / 2 - ((uc.l + 1 - uc.r) / 2 - 0.5) * pw, cy = y + h / 2 - ((uc.t + 1 - uc.b) / 2 - 0.5) * ph;
     var panX = (2 * cx - OW) / OW, panY = (OH - 2 * cy) / OH;
-    var c = [0, 0, 1, 1];
+    var c = [uc.l, uc.t, 1 - uc.r, 1 - uc.b];
     if (fillMode) {
-      var ox = Math.max(0, (pw - w) / 2) / pw, oy = Math.max(0, (ph - h) / 2) / ph;
-      c = [ox, oy, 1 - ox, 1 - oy];
+      var ox = Math.max(0, (rw * zoom - w) / 2) / pw, oy = Math.max(0, (rh * zoom - h) / 2) / ph;
+      c = [uc.l + ox, uc.t + oy, 1 - uc.r - ox, 1 - uc.b - oy];
     }
     var placed = { x: cx - pw / 2, y: cy - ph / 2, w: pw, h: ph };
     var visible = { x: placed.x + c[0] * pw, y: placed.y + c[1] * ph, w: (c[2] - c[0]) * pw, h: (c[3] - c[1]) * ph };
     return { zoom: zoom, panX: panX, panY: panY, crop: c, placed: placed, visible: visible, slotOut: { x: x, y: y, w: w, h: h },
-      fitted: { w: fw, h: fh }, outW: OW, outH: OH, layer: layerOf(doc, o), mode: fillMode ? 'fill' : 'fit', aspect: A };
+      fitted: { w: fw, h: fh }, outW: OW, outH: OH, layer: layerOf(doc, o), mode: fillMode ? 'fill' : 'fit', aspect: A, userCrop: uc };
   }
   // Inverse: what vMix will show for given values. Used by tests and the read-back check.
   function vmixVisibleRect(OW, OH, aspect, zoom, panX, panY, crop) {
@@ -767,7 +780,7 @@ var PIPE = (function () {
     VERSION: VERSION, alphaTest: alphaTest, clamp: clamp, uid: uid, clone: clone, fmt: fmt, num: num, parseColor: parseColor,
     defaultStyle: defaultStyle, newObject: newObject, newDoc: newDoc, migrate: migrate,
     shapeOf: shapeOf, sd: sd, cov: cov, render: render, renderBack: renderBack, renderFront: renderFront, finalize: finalize,
-    lint: lint, ASPECTS: ASPECTS, aspectOf: aspectOf, vmixFor: vmixFor, vmixVisibleRect: vmixVisibleRect,
+    lint: lint, ASPECTS: ASPECTS, aspectOf: aspectOf, cropOf: cropOf, croppedAspect: croppedAspect, vmixFor: vmixFor, vmixVisibleRect: vmixVisibleRect,
     sortedSlots: sortedSlots, layerOf: layerOf, maskLayerOf: maskLayerOf, slotCommands: slotCommands, maskCommands: maskCommands,
     allCommands: allCommands, setupText: setupText, slotLabel: slotLabel, apiUrl: apiUrl,
     encodePNG: encodePNG, makeZip: makeZip, crc32: function (b) { return crcFinal(crc32(b)); }

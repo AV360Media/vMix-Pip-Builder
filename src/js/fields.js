@@ -75,6 +75,15 @@ function applyField(el, live) {
     var so = selObjs(); if (!so.length) return;
     so.forEach(function (o) {
       if (el.dataset.special === 'radius' && linkRadii) { o.radii = [v, v, v, v]; return; }
+      if (el.dataset.special === 'crop') { // move just that edge over the fixed picture
+        var P = sourceRect(o), side = path.slice(-1), bx = { x: o.x, y: o.y, w: o.w, h: o.h };
+        if (side === 'l') { var R = bx.x + bx.w; bx.x = Math.min(P.x + v * P.w, R - 8); bx.w = R - bx.x; }
+        if (side === 'r') bx.w = Math.max(8, P.x + P.w * (1 - v) - bx.x);
+        if (side === 't') { var B = bx.y + bx.h; bx.y = Math.min(P.y + v * P.h, B - 8); bx.h = B - bx.y; }
+        if (side === 'b') bx.h = Math.max(8, P.y + P.h * (1 - v) - bx.y);
+        setCropFromBox(o, P, bx);
+        return;
+      }
       if ((path === 'w' || path === 'h') && aspectLocked(null, o) && o.w > 0 && o.h > 0) { // keep proportions from the size before this edit
         var ar = arMemo[o.id] || (arMemo[o.id] = lockRatio(o, o.w, o.h));
         if (path === 'w') { o.w = v; o.h = Math.max(1, ui.snap ? Math.round(v / ar) : v / ar); } else { o.h = v; o.w = Math.max(1, ui.snap ? Math.round(v * ar) : v * ar); }
@@ -86,7 +95,7 @@ function applyField(el, live) {
   }
   // keep twin colour inputs in step
   $$('#tabBody [data-b="' + path + '"]').forEach(function (t) { if (t !== el && t.type !== 'number' && t.type !== 'checkbox') t.value = v; });
-  if (el.dataset.special === 'radius' && linkRadii) syncFields();
+  if (el.dataset.special === 'radius' && linkRadii || el.dataset.special === 'crop') syncFields();
   if (live) { requestRender(true); draw(); refreshComputed(); }
   else {
     if (path === 'name' || path === 'slot' || path === 'slotNum' || path === 'plane') buildObjList();
@@ -153,6 +162,7 @@ objList.addEventListener('dragend', function () { dragRow = null; $$('.orow.drop
 var lastSelKey = '';
 function selectionChanged(light) {
   var key = sel.join(',');
+  if (cropId && (sel.length !== 1 || sel[0] !== cropId)) cropId = null;
   if (key !== lastSelKey) { lastSelKey = key; buildTab(); }
   $$('#objList .orow').forEach(function (r) { r.classList.toggle('sel', sel.indexOf(r.dataset.id) >= 0); });
   $('#alignGrp').classList.toggle('hidden', !sel.length);

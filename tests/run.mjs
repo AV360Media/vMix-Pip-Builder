@@ -203,6 +203,39 @@ const PIPE = new Function(engineSrc + '\nreturn PIPE;')();
     }
   }
   ok(worst < 0.01 && fitBad === 0, `${n} slot/aspect/mode/resolution cases round-trip through the 6-decimal values (worst ${worst.toFixed(5)} px)`);
+  // source crop
+  const cs = PIPE.newObject('rrect', 480, 0, 960, 1080); cs.src.crop = { l: 0.25, t: 0, r: 0.25, b: 0 };
+  const vc = PIPE.vmixFor(d, cs);
+  ok(Math.abs(vc.zoom - 1) < 1e-9 && Math.abs(vc.panX) < 1e-9 && Math.abs(vc.panY) < 1e-9 && vc.crop.map(n => +n.toFixed(6)).join() === '0.25,0,0.75,1', 'cropping 25 % off each side of a 16:9 source fills a centred 960x1080 box at Zoom 1, Pan 0, Crop 0.25,0,0.75,1');
+  const cs2 = PIPE.newObject('rrect', 100, 100, 600, 400); cs2.src.crop = { l: 0.1, t: 0.2, r: 0, b: 0 };
+  const vc2 = PIPE.vmixFor(d, cs2);
+  ok(vc2.crop[0] >= 0.1 - 1e-9 && vc2.crop[1] >= 0.2 - 1e-9 && Math.abs(vc2.visible.x - 100) < 1e-6 && Math.abs(vc2.visible.w - 600) < 1e-6 && Math.abs(vc2.visible.h - 400) < 1e-6, 'an off-centre crop still fills the box exactly, with the user crop inside the vMix crop');
+  let cworst = 0, cn = 0, keepWorst = 0, fitAsp = 0, rng = 7;
+  const rnd = () => (rng = (rng * 16807) % 2147483647) / 2147483647;
+  for (const [CW, CH, OW, OH] of [[1920, 1080, 1920, 1080], [3840, 2160, 1920, 1080], [1280, 720, 1280, 720]]) {
+    const dd = PIPE.newDoc(CW, CH); dd.vmix.outW = OW; dd.vmix.outH = OH;
+    for (let i = 0; i < 60; i++) {
+      const asp = Object.keys(PIPE.ASPECTS)[i % 8], mode = i % 3 ? 'fill' : 'fit';
+      const o = PIPE.newObject('rrect', Math.round(rnd() * CW * 0.5), Math.round(rnd() * CH * 0.5), Math.round(80 + rnd() * CW * 0.4), Math.round(60 + rnd() * CH * 0.4));
+      o.src.aspect = asp; o.src.mode = mode; o.src.crop = { l: rnd() * 0.3, t: rnd() * 0.3, r: rnd() * 0.3, b: rnd() * 0.3 };
+      const r = PIPE.vmixFor(dd, o), vis = PIPE.vmixVisibleRect(OW, OH, PIPE.aspectOf(o.src), +PIPE.fmt(r.zoom), +PIPE.fmt(r.panX), +PIPE.fmt(r.panY), r.crop.map(c => +PIPE.fmt(c)));
+      const t = [o.x * OW / CW, o.y * OH / CH, o.w * OW / CW, o.h * OH / CH]; cn++;
+      if (mode === 'fill') cworst = Math.max(cworst, Math.abs(vis.x - t[0]), Math.abs(vis.y - t[1]), Math.abs(vis.w - t[2]), Math.abs(vis.h - t[3]));
+      else if (Math.abs(vis.w / vis.h - PIPE.croppedAspect(o.src) * (OH / CH) / (OW / CW) * (OW / CW) / (OH / CH)) > 0.002 || Math.abs(vis.x + vis.w / 2 - (t[0] + t[2] / 2)) > 0.01) fitAsp++;
+      // crop on canvas: trimming the box over the fixed picture must leave the picture where it was
+      const kx = CW / OW, ky = CH / OH, P = { x: r.placed.x * kx, y: r.placed.y * ky, w: r.placed.w * kx, h: r.placed.h * ky };
+      const vb = { x: Math.max(o.x, P.x), y: Math.max(o.y, P.y) }; vb.w = Math.min(o.x + o.w, P.x + P.w) - vb.x; vb.h = Math.min(o.y + o.h, P.y + P.h) - vb.y;
+      const b = { x: vb.x + vb.w * 0.1, y: vb.y + vb.h * 0.05, w: vb.w * 0.7, h: vb.h * 0.8 };
+      const o2 = JSON.parse(JSON.stringify(o)); Object.assign(o2, b);
+      o2.src.crop = { l: (b.x - P.x) / P.w, t: (b.y - P.y) / P.h, r: (P.x + P.w - b.x - b.w) / P.w, b: (P.y + P.h - b.y - b.h) / P.h };
+      const r2 = PIPE.vmixFor(dd, o2);
+      keepWorst = Math.max(keepWorst, Math.abs(r2.placed.x - r.placed.x), Math.abs(r2.placed.y - r.placed.y), Math.abs(r2.placed.w - r.placed.w), Math.abs(r2.placed.h - r.placed.h), Math.abs(r2.zoom - r.zoom) * 1000);
+    }
+  }
+  ok(cworst < 0.01 && fitAsp === 0, `${cn} cropped slots round-trip through the 6-decimal values (worst ${cworst.toFixed(5)} px; fit keeps the cropped shape, centred)`);
+  ok(keepWorst < 1e-6, `trimming a box over its picture keeps the picture's size and position in vMix (worst ${keepWorst.toExponential(1)})`);
+  const oldCrop = PIPE.migrate({ objects: [{ type: 'rrect', x: 0, y: 0, w: 10, h: 10, src: { aspect: '4:3' } }] });
+  ok(oldCrop.objects[0].src.crop && oldCrop.objects[0].src.crop.l === 0 && oldCrop.objects[0].src.aspect === '4:3', 'projects saved before crop existed load uncropped');
   // lint
   const many = PIPE.newDoc(1920, 1080);
   for (let i = 0; i < 10; i++) many.objects.push(PIPE.newObject('rrect', (i % 5) * 380, i < 5 ? 0 : 540, 300, 200, { slotNum: i + 1, name: 'S' + i }));
@@ -368,6 +401,42 @@ async function browserSuite(pw) {
     await p.click('#tabBody button[data-lockar]'); await p.waitForTimeout(100);
     ok(await p.evaluate(() => __pip.ui.lockAspect === false) && !(await p.locator('#lockArBtn').getAttribute('class')).includes('on'), 'the lock beside W / H toggles the same setting');
     await p.click('#lockArBtn');
+    // crop on the canvas: C enters crop mode, dragging an edge trims the box over a fixed picture, dragging inside moves the picture
+    await p.evaluate(() => __pip.loadTemplate(2)); await rendered();
+    let c1 = await slot1(); await p.evaluate(id => __pip.sel([id]), c1.id);
+    const placedOf = () => p.evaluate(() => { const o = __pip.doc.objects.find(o => o.slot && o.slotNum === 1); return __pip.vmixFor(o).placed; });
+    const pic0 = await placedOf();
+    await p.keyboard.press('c');
+    ok(await p.evaluate(() => !!__pip.cropId) && await p.locator('#tabBody [data-act="cropMode"].primary').count() === 1, 'C starts cropping the selected slot');
+    await dragHandle(c1.x, c1.y + c1.h / 2, 120, 0);
+    let c2 = await slot1(), pic1 = await placedOf();
+    ok(c2.x > c1.x && c2.x + c2.w === c1.x + c1.w && c2.h === c1.h && c2.src.crop.l > 0.1 && Math.abs(pic1.x - pic0.x) < 1e-6 && Math.abs(pic1.w - pic0.w) < 1e-6, `dragging the left edge trims the picture and leaves it in place (crop left ${(c2.src.crop.l * 100).toFixed(1)} %; box ${c2.x},${c2.w}; picture moved ${(pic1.x - pic0.x).toExponential(1)})`);
+    await dragHandle(c2.x, c2.y + c2.h / 2, -400, 0);
+    c2 = await slot1();
+    ok(c2.x === c1.x && c2.src.crop.l === 0, `the edge stops at the edge of the picture (x ${c2.x}, left ${c2.src.crop.l})`);
+    await dragHandle(c2.x + c2.w, c2.y + c2.h / 2, -200, 0);
+    c2 = await slot1(); const [mx, my] = await scr(c2.x + c2.w / 2, c2.y + c2.h / 2);
+    await p.mouse.move(mx, my); await p.mouse.down(); await p.mouse.move(mx - 60, my, { steps: 6 }); await p.mouse.up();
+    let c3 = await slot1();
+    ok(c3.x === c2.x && c3.w === c2.w && c3.src.crop.l > c2.src.crop.l && c3.src.crop.r < c2.src.crop.r, `dragging inside moves the picture under the box (left / right crop ${(c2.src.crop.l * 100).toFixed(1)} / ${(c2.src.crop.r * 100).toFixed(1)} -> ${(c3.src.crop.l * 100).toFixed(1)} / ${(c3.src.crop.r * 100).toFixed(1)} %)`);
+    await p.keyboard.press('Enter');
+    ok(await p.evaluate(() => !__pip.cropId), 'Enter finishes cropping');
+    await p.click('#tabs button[data-tab="object"]');
+    await p.fill('#tabBody input[data-b="src.crop.t"]', '10'); await p.press('#tabBody input[data-b="src.crop.t"]', 'Enter');
+    c3 = await slot1(); const pic3 = await placedOf();
+    ok(Math.abs(c3.src.crop.t - 0.1) < 1e-6 && Math.abs(pic3.y - pic0.y) < 1e-6 && c3.y > c1.y, 'typing Top 10 % trims the top of the picture without moving it');
+    const sent = await p.evaluate(() => { const o = __pip.doc.objects.find(o => o.slot && o.slotNum === 1); return __pip.vmixFor(o).crop; });
+    ok(sent[1] >= 0.1 - 1e-9 && sent[2] < 1, `the vMix crop carries the trim (${sent.map(n => n.toFixed(4)).join(',')})`);
+    const picR = await placedOf();
+    await p.click('#tabBody [data-act="cropReset"]');
+    c3 = await slot1();
+    ok(c3.src.crop.l === 0 && c3.src.crop.r === 0 && c3.src.crop.t === 0 && c3.w === c1.w && c3.h === c1.h && c3.x === Math.round(picR.x) && c3.y === Math.round(picR.y), `Remove crop grows the box back to the whole picture where it sits (${c3.w}x${c3.h} at ${c3.x},${c3.y})`);
+    // New project: one click, blank, undo brings the old one back
+    const before = (await docOf()).objects.length;
+    await p.click('#newBtn');
+    ok((await docOf()).objects.length === 0 && (await docOf()).canvas.w === 1920, 'New starts a blank project at the same canvas size');
+    await p.keyboard.press('Control+z');
+    ok((await docOf()).objects.length === before, 'undo after New brings the previous project back');
     // View menu holds the work area and guide options
     ok(!(await p.locator('#bgMode').isVisible()), 'background options are tucked into the View menu');
     await p.click('#viewMenuBtn'); ok(await p.locator('#bgMode').isVisible() && await p.locator('#safeMode').isVisible(), 'View menu opens');

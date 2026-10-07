@@ -244,6 +244,14 @@ $('#viewMenu').addEventListener('click', function (e) { e.stopPropagation(); });
 document.addEventListener('click', function () { $('#exportMenu').classList.remove('open'); $('#viewMenu').classList.remove('open'); });
 document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { $('#exportMenu').classList.remove('open'); $('#viewMenu').classList.remove('open'); } });
 $('#lockArBtn').addEventListener('click', function () { setLockAspect(!ui.lockAspect); });
+// Clean slate: no objects, default styles and mask, same canvas size and vMix connection. Undo brings the old project back.
+function newProject() {
+  var d = PIPE.newDoc(doc.canvas.w, doc.canvas.h); d.vmix = doc.vmix;
+  doc = d; sel = []; cropId = null; cardCache = {}; setTool('select'); setTab('object');
+  commit(); buildAll(); fitView();
+  toast('New blank project. Pick a Layout or draw a box. Undo (Ctrl+Z) brings the last one back.', false, 6000);
+}
+$('#newBtn').addEventListener('click', newProject);
 $('#exportMenu').addEventListener('click', function (e) {
   var b = e.target.closest('[data-exp]'); if (!b) return;
   var k = b.dataset.exp;
@@ -375,5 +383,5 @@ function buildAll() { syncCanvasUi(); buildObjList(); lastSelKey = '?'; selectio
   requestRender(false);
   if (restored) toast('Restored your last session from autosave');
   // test hooks (used by the automated checks; harmless otherwise)
-  window.__pip = { testBuild: TESTBUILD, get ui() { return ui; }, setLockAspect: setLockAspect, keys: { auto: LS_AUTO, presets: LS_PRESETS, ui: LS_UI }, get doc() { return doc; }, set doc(d) { doc = PIPE.migrate(d); commit(); buildAll(); }, sel: function (ids) { sel = ids; selectionChanged(); }, render: R, exportPack: exportPack, undo: undo, redo: redo, hist: hist, setCanvasSize: setCanvasSize, loadTemplate: function (i) { loadTemplate(TEMPLATES[i]); }, templates: TEMPLATES.map(function (t) { return t.name; }), view: view };
+  window.__pip = { testBuild: TESTBUILD, get cropId() { return cropId; }, vmixFor: function (o) { return PIPE.vmixFor(doc, o); }, get ui() { return ui; }, setLockAspect: setLockAspect, keys: { auto: LS_AUTO, presets: LS_PRESETS, ui: LS_UI }, get doc() { return doc; }, set doc(d) { doc = PIPE.migrate(d); commit(); buildAll(); }, sel: function (ids) { sel = ids; selectionChanged(); }, render: R, exportPack: exportPack, undo: undo, redo: redo, hist: hist, setCanvasSize: setCanvasSize, loadTemplate: function (i) { loadTemplate(TEMPLATES[i]); }, templates: TEMPLATES.map(function (t) { return t.name; }), view: view };
 })();

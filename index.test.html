@@ -178,6 +178,7 @@ details.sec>summary .sum{color:var(--faint);font-weight:400;margin-left:6px;font
     </div>
     <span class="spacer"></span>
     <div class="grp">
+      <button id="newBtn" title="Start a new blank project (undo brings the current one back)">New</button>
       <button id="openBtn" title="Open project JSON (Ctrl+O)">Open</button>
       <button id="saveBtn" title="Save project JSON (Ctrl+S)">Save</button>
       <button id="exportMenuBtn" title="Export single PNGs or text">Export ▾</button>
@@ -323,7 +324,7 @@ var PIPE = (function () {
       cornerStyle: 'round', smooth: 4, caps: 'butt',
       plane: 'back', locked: false, hidden: false,
       style: defaultStyle(),
-      src: { aspect: '16:9', cw: 16, ch: 9, mode: 'fill', source: '', layer: 0 }
+      src: { aspect: '16:9', cw: 16, ch: 9, mode: 'fill', source: '', layer: 0, crop: { l: 0, t: 0, r: 0, b: 0 } }
     };
     if (type === 'line') {
       o.style.stroke.enabled = false; o.style.shadows = []; o.style.knockout = false;
@@ -807,6 +808,15 @@ var PIPE = (function () {
     if (src.aspect === 'custom') return Math.max(0.01, +src.cw || 16) / Math.max(0.01, +src.ch || 9);
     return ASPECTS[src.aspect] || 16 / 9;
   }
+  // User crop of the source, as fractions of the source width / height trimmed from each side.
+  function cropOf(src) {
+    var c = src && src.crop || {}, k = function (v) { v = +v || 0; return v < 0 ? 0 : v > 0.98 ? 0.98 : v; };
+    var l = k(c.l), r = k(c.r), t = k(c.t), b = k(c.b);
+    if (l + r > 0.98) { var sx = 0.98 / (l + r); l *= sx; r *= sx; }
+    if (t + b > 0.98) { var sy = 0.98 / (t + b); t *= sy; b *= sy; }
+    return { l: l, t: t, r: r, b: b };
+  }
+  function croppedAspect(src) { var c = cropOf(src); return aspectOf(src) * (1 - c.l - c.r) / (1 - c.t - c.b); }
   function sortedSlots(doc) {
     return slotsOf(doc).slice().sort(function (a, b) { return (a.slotNum || 0) - (b.slotNum || 0) || doc.objects.indexOf(a) - doc.objects.indexOf(b); });
   }
@@ -826,21 +836,25 @@ var PIPE = (function () {
     var v = doc.vmix, CW = doc.canvas.w, CH = doc.canvas.h, OW = +v.outW || CW, OH = +v.outH || CH;
     var sx = OW / CW, sy = OH / CH;
     var x = o.x * sx, y = o.y * sy, w = o.w * sx, h = o.h * sy;
-    var A = aspectOf(o.src), fw, fh;
+    var A = aspectOf(o.src), fw, fh, uc = cropOf(o.src);
     if (A >= OW / OH) { fw = OW; fh = OW / A; } else { fh = OH; fw = OH * A; }
+    // The user crop leaves a region rw x rh (at zoom 1) that is fitted or filled into the slot.
+    var rw = fw * (1 - uc.l - uc.r), rh = fh * (1 - uc.t - uc.b);
     var fillMode = !o.src || o.src.mode !== 'fit';
-    var zoom = fillMode ? Math.max(w / fw, h / fh) : Math.min(w / fw, h / fh);
-    var pw = fw * zoom, ph = fh * zoom, cx = x + w / 2, cy = y + h / 2;
+    var zoom = fillMode ? Math.max(w / rw, h / rh) : Math.min(w / rw, h / rh);
+    var pw = fw * zoom, ph = fh * zoom;
+    // Centre the kept region on the slot; the layer itself (uncropped) is what Pan positions.
+    var cx = x + w / 2 - ((uc.l + 1 - uc.r) / 2 - 0.5) * pw, cy = y + h / 2 - ((uc.t + 1 - uc.b) / 2 - 0.5) * ph;
     var panX = (2 * cx - OW) / OW, panY = (OH - 2 * cy) / OH;
-    var c = [0, 0, 1, 1];
+    var c = [uc.l, uc.t, 1 - uc.r, 1 - uc.b];
     if (fillMode) {
-      var ox = Math.max(0, (pw - w) / 2) / pw, oy = Math.max(0, (ph - h) / 2) / ph;
-      c = [ox, oy, 1 - ox, 1 - oy];
+      var ox = Math.max(0, (rw * zoom - w) / 2) / pw, oy = Math.max(0, (rh * zoom - h) / 2) / ph;
+      c = [uc.l + ox, uc.t + oy, 1 - uc.r - ox, 1 - uc.b - oy];
     }
     var placed = { x: cx - pw / 2, y: cy - ph / 2, w: pw, h: ph };
     var visible = { x: placed.x + c[0] * pw, y: placed.y + c[1] * ph, w: (c[2] - c[0]) * pw, h: (c[3] - c[1]) * ph };
     return { zoom: zoom, panX: panX, panY: panY, crop: c, placed: placed, visible: visible, slotOut: { x: x, y: y, w: w, h: h },
-      fitted: { w: fw, h: fh }, outW: OW, outH: OH, layer: layerOf(doc, o), mode: fillMode ? 'fill' : 'fit', aspect: A };
+      fitted: { w: fw, h: fh }, outW: OW, outH: OH, layer: layerOf(doc, o), mode: fillMode ? 'fill' : 'fit', aspect: A, userCrop: uc };
   }
   // Inverse: what vMix will show for given values. Used by tests and the read-back check.
   function vmixVisibleRect(OW, OH, aspect, zoom, panX, panY, crop) {
@@ -1041,7 +1055,7 @@ var PIPE = (function () {
     VERSION: VERSION, alphaTest: alphaTest, clamp: clamp, uid: uid, clone: clone, fmt: fmt, num: num, parseColor: parseColor,
     defaultStyle: defaultStyle, newObject: newObject, newDoc: newDoc, migrate: migrate,
     shapeOf: shapeOf, sd: sd, cov: cov, render: render, renderBack: renderBack, renderFront: renderFront, finalize: finalize,
-    lint: lint, ASPECTS: ASPECTS, aspectOf: aspectOf, vmixFor: vmixFor, vmixVisibleRect: vmixVisibleRect,
+    lint: lint, ASPECTS: ASPECTS, aspectOf: aspectOf, cropOf: cropOf, croppedAspect: croppedAspect, vmixFor: vmixFor, vmixVisibleRect: vmixVisibleRect,
     sortedSlots: sortedSlots, layerOf: layerOf, maskLayerOf: maskLayerOf, slotCommands: slotCommands, maskCommands: maskCommands,
     allCommands: allCommands, setupText: setupText, slotLabel: slotLabel, apiUrl: apiUrl,
     encodePNG: encodePNG, makeZip: makeZip, crc32: function (b) { return crcFinal(crc32(b)); }
@@ -1075,6 +1089,7 @@ var ui = { view: 'combined', bg: 'checker', snap: true, grid: 1, showGrid: false
 var session = { pass: '' };  // never saved
 var sampleImg = null, camStream = null;
 var linkRadii = true;
+var cropId = null;          // slot being cropped on the canvas, or null
 
 function objById(id) { for (var i = 0; i < doc.objects.length; i++) if (doc.objects[i].id === id) return doc.objects[i]; return null; }
 function selObjs() { return sel.map(objById).filter(Boolean); }
@@ -1380,6 +1395,15 @@ function drawOverlays(x0, y0, w, h, z) {
     }
     if (hover === o.id && !isSel) { ctx.strokeStyle = 'rgba(61,155,255,.6)'; ctx.lineWidth = 1; ctx.strokeRect(Math.round(X(o.x)) + 0.5, Math.round(Y(o.y)) + 0.5, Math.round(o.w * z), Math.round(o.h * z)); }
   });
+  // crop mode: the whole source picture, faint outside the slot, with its outline
+  var co = cropSlot();
+  if (co) {
+    var P = sourceRect(co), im = sourceImageFor(co, PIPE.sortedSlots(doc).indexOf(co));
+    ctx.save(); ctx.beginPath(); ctx.rect(X(P.x), Y(P.y), P.w * z, P.h * z); ctx.rect(X(co.x), Y(co.y), co.w * z, co.h * z); ctx.clip('evenodd');
+    ctx.globalAlpha = 0.35; try { ctx.drawImage(im, X(P.x), Y(P.y), P.w * z, P.h * z); } catch (e) { }
+    ctx.restore();
+    ctx.strokeStyle = '#ffb020'; ctx.setLineDash([5, 4]); ctx.lineWidth = 1; ctx.strokeRect(Math.round(X(P.x)) + 0.5, Math.round(Y(P.y)) + 0.5, Math.round(P.w * z), Math.round(P.h * z)); ctx.setLineDash([]);
+  }
   // selection
   var so = selObjs();
   so.forEach(function (o) {
@@ -1388,12 +1412,18 @@ function drawOverlays(x0, y0, w, h, z) {
   });
   if (so.length === 1 && !so[0].locked) {
     handlesOf(so[0]).forEach(function (hd) {
+      if (co) { // crop handles: thick orange bars along the edge
+        ctx.fillStyle = '#ffb020'; var hz = hd.n.length === 2, bw = hz ? 14 : (hd.n === 'n' || hd.n === 's' ? 22 : 5), bh = hz ? 14 : (hd.n === 'n' || hd.n === 's' ? 5 : 22);
+        if (hz) { var dx = hd.n.indexOf('w') >= 0 ? 1 : -1, dy = hd.n.indexOf('n') >= 0 ? 1 : -1; ctx.fillRect(X(hd.x) - (dx < 0 ? 14 : 0) - (dx > 0 ? 2 : -2), Y(hd.y) - (dy > 0 ? 2 : 3), 14, 5); ctx.fillRect(X(hd.x) - (dx > 0 ? 2 : 3), Y(hd.y) - (dy < 0 ? 14 : 0) - (dy > 0 ? 2 : -2), 5, 14); }
+        else ctx.fillRect(X(hd.x) - bw / 2, Y(hd.y) - bh / 2, bw, bh);
+        return;
+      }
       ctx.fillStyle = '#fff'; ctx.strokeStyle = '#3d9bff';
       ctx.fillRect(X(hd.x) - 4, Y(hd.y) - 4, 8, 8); ctx.strokeRect(X(hd.x) - 4 + 0.5, Y(hd.y) - 4 + 0.5, 7, 7);
     });
-    var o = so[0], dl = Math.round(o.w) + ' × ' + Math.round(o.h) + '  @ ' + fmt(o.x, 1) + ', ' + fmt(o.y, 1);
+    var o = so[0], dl = (co ? 'CROP  ' : '') + Math.round(o.w) + ' × ' + Math.round(o.h) + '  @ ' + fmt(o.x, 1) + ', ' + fmt(o.y, 1);
     ctx.font = '11px ui-monospace,monospace'; var dw = ctx.measureText(dl).width;
-    ctx.fillStyle = '#3d9bff'; ctx.fillRect(X(o.x), Y(o.y + o.h) + 6, dw + 10, 16);
+    ctx.fillStyle = co ? '#c77d00' : '#3d9bff'; ctx.fillRect(X(o.x), Y(o.y + o.h) + 6, dw + 10, 16);
     ctx.fillStyle = '#fff'; ctx.fillText(dl, X(o.x) + 5, Y(o.y + o.h) + 18);
   } else if (so.length > 1) {
     var bb = bboxOf(so); ctx.setLineDash([3, 3]); ctx.strokeStyle = '#9cc8ff';
@@ -1482,7 +1512,12 @@ cvs.addEventListener('pointerdown', function (e) {
     drag = { kind: 'create', type: tool, x0: sx0, y0: sy0, obj: null };
     return;
   }
-  var hnd = hitHandle(p.x, p.y);
+  var hnd = hitHandle(p.x, p.y), co = cropSlot();
+  if (co) {
+    if (hnd) { drag = { kind: 'crop', h: hnd, P: sourceRect(co), start: { x: co.x, y: co.y, w: co.w, h: co.h }, id: co.id, moved: false }; return; }
+    if (p.x >= co.x && p.x <= co.x + co.w && p.y >= co.y && p.y <= co.y + co.h) { drag = { kind: 'cropPan', P: sourceRect(co), px: p.x, py: p.y, id: co.id, moved: false }; return; }
+    endCrop();
+  }
   if (hnd) {
     var o = firstSel();
     drag = { kind: 'resize', h: hnd, start: { x: o.x, y: o.y, w: o.w, h: o.h }, px: p.x, py: p.y, id: o.id, moved: false };
@@ -1558,6 +1593,24 @@ cvs.addEventListener('pointermove', function (e) {
     drag.starts.forEach(function (s) { var o = objById(s.id); o.x = s.x + offx; o.y = s.y + offy; });
     syncFields(); requestRender(true); draw(); return;
   }
+  if (drag.kind === 'crop') { // move the slot edges over a fixed picture; the crop follows
+    var oc = objById(drag.id), P0 = drag.P, sc = drag.start, hc = drag.h, MIN = 8;
+    var cL = sc.x, cT = sc.y, cR = sc.x + sc.w, cB = sc.y + sc.h, qx = snapVal(p.x), qy = snapVal(p.y);
+    if (hc.indexOf('w') >= 0) cL = Math.max(P0.x, Math.min(qx, cR - MIN));
+    if (hc.indexOf('e') >= 0) cR = Math.min(P0.x + P0.w, Math.max(qx, cL + MIN));
+    if (hc.indexOf('n') >= 0) cT = Math.max(P0.y, Math.min(qy, cB - MIN));
+    if (hc.indexOf('s') >= 0) cB = Math.min(P0.y + P0.h, Math.max(qy, cT + MIN));
+    setCropFromBox(oc, P0, { x: cL, y: cT, w: cR - cL, h: cB - cT });
+    drag.moved = true; syncFields(); requestRender(true); draw(); return;
+  }
+  if (drag.kind === 'cropPan') { // slide the picture under the slot
+    var op = objById(drag.id), Pp = drag.P;
+    var nx = Pp.x + (p.x - drag.px), ny = Pp.y + (p.y - drag.py);
+    if (ui.snap) { nx = Math.round(nx); ny = Math.round(ny); }
+    nx = Math.min(op.x, Math.max(op.x + op.w - Pp.w, nx)); ny = Math.min(op.y, Math.max(op.y + op.h - Pp.h, ny));
+    setCropFromBox(op, { x: nx, y: ny, w: Pp.w, h: Pp.h }, { x: op.x, y: op.y, w: op.w, h: op.h });
+    drag.moved = true; syncFields(); requestRender(true); draw(); return;
+  }
   if (drag.kind === 'resize') {
     var o2 = objById(drag.id), st = drag.start, h = drag.h;
     var L = st.x, T2 = st.y, Rr = st.x + st.w, B = st.y + st.h;
@@ -1610,6 +1663,7 @@ function endDrag() {
     }
     setTool('select'); selectionChanged(); commit(); buildObjList();
   } else if (k === 'move' || k === 'resize') { if (d.moved || d.dup) commit(); if (d.dup) buildObjList(); }
+  else if (k === 'crop' || k === 'cropPan') { if (d.moved) { commit(); buildTab(); } }
   else if (k === 'marquee') selectionChanged();
   draw();
 }
@@ -1628,11 +1682,32 @@ cvs.addEventListener('wheel', function (e) {
 
 // ---------------- object ops ----------------
 function nextSlotNum() { var m = 0; doc.objects.forEach(function (o) { if (o.slot) m = Math.max(m, o.slotNum || 0); }); return m + 1; }
+// ---------------- crop ----------------
+// Whole (uncropped) source picture of a slot, in canvas px, as vMix places it.
+function sourceRect(o) { var vm = PIPE.vmixFor(doc, o), kx = doc.canvas.w / vm.outW, ky = doc.canvas.h / vm.outH; return { x: vm.placed.x * kx, y: vm.placed.y * ky, w: vm.placed.w * kx, h: vm.placed.h * ky }; }
+// Make the slot exactly rect b over picture P: the picture keeps its size and position, the crop follows.
+function setCropFromBox(o, P, b) {
+  function f(v) { return v < 1e-9 ? 0 : v; }
+  function g(v) { var r = Math.round(v); return Math.abs(v - r) < 1e-6 ? r : v; } // keep whole pixels whole after float clamping
+  b = { x: g(b.x), y: g(b.y), w: g(b.w), h: g(b.h) };
+  o.x = b.x; o.y = b.y; o.w = b.w; o.h = b.h;
+  o.src.crop = { l: f((b.x - P.x) / P.w), t: f((b.y - P.y) / P.h), r: f((P.x + P.w - b.x - b.w) / P.w), b: f((P.y + P.h - b.y - b.h) / P.h) };
+}
+function cropSlot() { var o = cropId && sel.length === 1 ? objById(cropId) : null; return o && o.id === sel[0] ? o : null; }
+function startCrop() {
+  var o = firstSel();
+  if (!o || sel.length !== 1 || !o.slot || o.locked) { toast('Select one unlocked video slot to crop it.'); return; }
+  cropId = o.id; setTool('select'); buildTab(); draw();
+  toast('Crop: drag the orange edges to trim the picture, drag inside to move it. Enter or Esc when done.', false, 6000);
+}
+function endCrop() { if (!cropId) return; cropId = null; buildTab(); draw(); }
+function toggleCrop() { if (cropSlot()) endCrop(); else startCrop(); }
+
 // Proportion lock (on by default). Shift flips it for the current drag. Lines never lock.
 function aspectLocked(e, o) { return (ui.lockAspect !== false) !== !!(e && e.shiftKey) && (!o || o.type !== 'line'); }
 // Ratio to hold while locked: a slot within 1 % of its source shape snaps to the exact source ratio, so 16:9 boxes don't drift after rounding.
 function lockRatio(o, w, h) {
-  var r = w / h, sa = o.slot ? PIPE.aspectOf(o.src) : 0;
+  var r = w / h, sa = o.slot ? PIPE.croppedAspect(o.src) : 0;
   return sa && Math.abs(r / sa - 1) < 0.01 ? sa : r;
 }
 function drawAspect(type, e) {
@@ -1745,7 +1820,9 @@ document.addEventListener('keydown', function (e) {
   if (k === 'ArrowUp') { e.preventDefault(); nudge(0, -step); return; }
   if (k === 'ArrowDown') { e.preventDefault(); nudge(0, step); return; }
   if (k === 'Delete' || k === 'Backspace') { e.preventDefault(); deleteSel(); return; }
+  if ((k === 'Escape' || k === 'Enter') && cropSlot()) { endCrop(); return; }
   if (k === 'Escape') { sel = []; selectionChanged(); setTool('select'); draw(); return; }
+  if (k === 'c' || k === 'C') { toggleCrop(); return; }
   if (k === ' ') { if (!spaceDown) { spaceDown = true; cvs.style.cursor = 'grab'; } e.preventDefault(); return; }
   var map = { v: 'select', h: 'hand', r: 'rrect', q: 'squircle', e: 'ellipse', m: 'rect', l: 'line' };
   if (map[k.toLowerCase()]) { setTool(map[k.toLowerCase()]); return; }
@@ -1761,7 +1838,7 @@ var SHORTCUTS = [
   ['Arrows', 'Nudge 1 px'], ['Shift + Arrows', 'Nudge 10 px'], ['Ctrl+D', 'Duplicate'], ['Alt + drag', 'Duplicate while moving'], ['Del / Backspace', 'Delete'],
   ['Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y', 'Undo / redo'], ['Ctrl+A', 'Select all'], ['Shift + click', 'Add to selection'],
   ['Ctrl+] / Ctrl+[', 'Bring forward / send backward (add Shift: to front / back)'], ['Ctrl+L / Ctrl+H', 'Lock / hide'],
-  ['K', 'Lock / unlock box proportions'], ['Shift + resize', 'Break (or keep) proportions for one drag'], ['Alt + drag handle', 'Resize from centre'], ['Shift + drag', 'Constrain move to one axis'],
+  ['K', 'Lock / unlock box proportions'], ['C', 'Crop the selected slot (Enter or Esc when done)'], ['Shift + resize', 'Break (or keep) proportions for one drag'], ['Alt + drag handle', 'Resize from centre'], ['Shift + drag', 'Constrain move to one axis'],
   ['1  2  3', 'View back plate / front mask / combined'], ['G', 'Toggle grid'], ['T', 'Templates'],
   ['Ctrl+0 / Ctrl+1', 'Fit / 100%'], ['Ctrl+ +/-, wheel', 'Zoom'], ['Ctrl+S / Ctrl+O', 'Save / open project'], ['Ctrl+E', 'Export Pack'], ['Esc', 'Deselect']
 ];
@@ -1842,6 +1919,15 @@ function applyField(el, live) {
     var so = selObjs(); if (!so.length) return;
     so.forEach(function (o) {
       if (el.dataset.special === 'radius' && linkRadii) { o.radii = [v, v, v, v]; return; }
+      if (el.dataset.special === 'crop') { // move just that edge over the fixed picture
+        var P = sourceRect(o), side = path.slice(-1), bx = { x: o.x, y: o.y, w: o.w, h: o.h };
+        if (side === 'l') { var R = bx.x + bx.w; bx.x = Math.min(P.x + v * P.w, R - 8); bx.w = R - bx.x; }
+        if (side === 'r') bx.w = Math.max(8, P.x + P.w * (1 - v) - bx.x);
+        if (side === 't') { var B = bx.y + bx.h; bx.y = Math.min(P.y + v * P.h, B - 8); bx.h = B - bx.y; }
+        if (side === 'b') bx.h = Math.max(8, P.y + P.h * (1 - v) - bx.y);
+        setCropFromBox(o, P, bx);
+        return;
+      }
       if ((path === 'w' || path === 'h') && aspectLocked(null, o) && o.w > 0 && o.h > 0) { // keep proportions from the size before this edit
         var ar = arMemo[o.id] || (arMemo[o.id] = lockRatio(o, o.w, o.h));
         if (path === 'w') { o.w = v; o.h = Math.max(1, ui.snap ? Math.round(v / ar) : v / ar); } else { o.h = v; o.w = Math.max(1, ui.snap ? Math.round(v * ar) : v * ar); }
@@ -1853,7 +1939,7 @@ function applyField(el, live) {
   }
   // keep twin colour inputs in step
   $$('#tabBody [data-b="' + path + '"]').forEach(function (t) { if (t !== el && t.type !== 'number' && t.type !== 'checkbox') t.value = v; });
-  if (el.dataset.special === 'radius' && linkRadii) syncFields();
+  if (el.dataset.special === 'radius' && linkRadii || el.dataset.special === 'crop') syncFields();
   if (live) { requestRender(true); draw(); refreshComputed(); }
   else {
     if (path === 'name' || path === 'slot' || path === 'slotNum' || path === 'plane') buildObjList();
@@ -1920,6 +2006,7 @@ objList.addEventListener('dragend', function () { dragRow = null; $$('.orow.drop
 var lastSelKey = '';
 function selectionChanged(light) {
   var key = sel.join(',');
+  if (cropId && (sel.length !== 1 || sel[0] !== cropId)) cropId = null;
   if (key !== lastSelKey) { lastSelKey = key; buildTab(); }
   $$('#objList .orow').forEach(function (r) { r.classList.toggle('sel', sel.indexOf(r.dataset.id) >= 0); });
   $('#alignGrp').classList.toggle('hidden', !sel.length);
@@ -1952,7 +2039,7 @@ function lockArBtn() { return '<div class="f"><label>&nbsp;</label><button class
 
 function tabObject() {
   var o = firstSel(); if (!o) return noSel();
-  var multi = sel.length > 1, h = '', asp = o.src.aspect === 'custom' ? 'source' : o.src.aspect;
+  var multi = sel.length > 1, h = '', cq = PIPE.cropOf(o.src), asp = o.src.aspect === 'custom' || cq.l || cq.t || cq.r || cq.b ? 'source' : o.src.aspect;
   h += sec(multi ? sel.length + ' objects selected' : o.slot ? 'Video slot' : 'Decoration',
     row('c2', fTxt('Name', 'name') + (o.slot ? fNum('Slot number', 'slotNum', { min: 0, max: 99 }) : fSel('Drawn on', 'plane', [['back', 'Back plate (behind video)'], ['front', 'Front mask (over video)']], { rebuild: 1 }))) +
     fChk('A vMix source sits here' + (o.slot ? ' (layer ' + PIPE.layerOf(doc, o) + ')' : ''), 'slot', { rebuild: 1, title: 'Untick for a decoration: a shape that gets no vMix layer.' }));
@@ -1960,6 +2047,14 @@ function tabObject() {
     row('c2', fNum('X (left)', 'x', { step: 1 }) + fNum('Y (top)', 'y', { step: 1 })) +
     row('c3', btn('Centre H', 'centerH') + btn('Centre V', 'centerV') + btn('Match ' + esc(asp), 'match169', ' title="Set the height so the box matches its source shape"')) +
     '<div class="note">' + (ui.lockAspect ? 'Ratio locked: resizing keeps the shape. Hold Shift while dragging to break it once.' : 'Ratio unlocked: width and height change freely.') + ' Right / bottom edge: <span id="edgeInfo"></span></div>');
+  if (o.slot && !multi) {
+    var cp = PIPE.cropOf(o.src), isCrop = cropId === o.id, anyCrop = cp.l || cp.t || cp.r || cp.b;
+    h += csec('obCrop', 'Crop', row('', fNum('Left %', 'src.crop.l', { k: 100, min: 0, max: 98, step: 0.5, special: 'crop' }) + fNum('Right %', 'src.crop.r', { k: 100, min: 0, max: 98, step: 0.5, special: 'crop' }) +
+        fNum('Top %', 'src.crop.t', { k: 100, min: 0, max: 98, step: 0.5, special: 'crop' }) + fNum('Bottom %', 'src.crop.b', { k: 100, min: 0, max: 98, step: 0.5, special: 'crop' })) +
+      row('c2', btn(isCrop ? 'Done cropping' : 'Crop on canvas (C)', 'cropMode', isCrop ? ' class="primary"' : '') + btn('Remove crop', 'cropReset')) +
+      '<div class="note">Trims the source picture. The picture keeps its size and position, so the box shrinks to what is left. Percentages are of the whole source.</div>',
+      !!(anyCrop || isCrop), anyCrop ? 'cropped' : 'none');
+  }
   if (o.type === 'rrect') {
     h += sec('Corners', row('', fNum('Top L', 'radii.0', { min: 0, special: 'radius' }) + fNum('Top R', 'radii.1', { min: 0, special: 'radius' }) + fNum('Bot R', 'radii.2', { min: 0, special: 'radius' }) + fNum('Bot L', 'radii.3', { min: 0, special: 'radius' })) +
       row('c3', '<label class="f inline"><input type="checkbox" id="linkR"' + (linkRadii ? ' checked' : '') + '>Link corners</label>' + fSel('Corner shape', 'cornerStyle', [['round', 'Circular'], ['squircle', 'Squircle']], { rebuild: 1 }) + (o.cornerStyle === 'squircle' ? fNum('Smoothness', 'smooth', { min: 2, max: 12, step: 0.5, title: '2 = circular, 4-5 = squircle, higher = squarer' }) : '')));
@@ -2041,7 +2136,8 @@ function sourceSection(o) {
   return sec('Source for "' + esc(o.name || 'Slot') + '"', row('c2', fTxt('vMix source input', 'src.source', { ph: 'e.g. Cam 1 or 3' }) + fNum('Layer (0 = auto)', 'src.layer', { min: 0, max: 10 })) +
     row('c3', fSel('Source aspect', 'src.aspect', Object.keys(PIPE.ASPECTS).map(function (k) { return [k, k]; }).concat([['custom', 'Custom']]), { rebuild: 1 }) +
       fSel('Placement', 'src.mode', [['fill', 'Fill (crop)'], ['fit', 'Fit (letterbox)']]) + '<span></span>') +
-    (o.src.aspect === 'custom' ? row('c2', fNum('Aspect W', 'src.cw', { min: 0.01, step: 0.01 }) + fNum('Aspect H', 'src.ch', { min: 0.01, step: 0.01 })) : ''));
+    (o.src.aspect === 'custom' ? row('c2', fNum('Aspect W', 'src.cw', { min: 0.01, step: 0.01 }) + fNum('Aspect H', 'src.ch', { min: 0.01, step: 0.01 })) : '') +
+    (function () { var c = PIPE.cropOf(o.src); return c.l || c.t || c.r || c.b ? '<div class="note">Cropped: left ' + fmt(c.l * 100, 1) + ' %, right ' + fmt(c.r * 100, 1) + ' %, top ' + fmt(c.t * 100, 1) + ' %, bottom ' + fmt(c.b * 100, 1) + ' %. Change it on the Object tab or press C.</div>' : ''; })());
 }
 function cmdList(cmds) {
   return cmds.map(function (c, i) { return '<div class="cmd"><code title="' + esc(c.url) + '">' + esc(c.url) + '</code><button data-act="copyUrl" data-url="' + esc(c.url) + '">Copy</button></div>'; }).join('');
@@ -2110,7 +2206,7 @@ function tabProject() {
     '<div class="note">All PNGs are exactly ' + doc.canvas.w + '×' + doc.canvas.h + ' px, 8-bit straight (non-premultiplied) alpha, no gamma or colour profile chunks.</div>');
   h += sec('Canvas', row('c3', '<div class="f"><label>Width</label><input type="number" id="pW" min="16" max="8192" value="' + doc.canvas.w + '"></div><div class="f"><label>Height</label><input type="number" id="pH" min="16" max="8192" value="' + doc.canvas.h + '"></div><div class="f"><label>&nbsp;</label>' + btn('Apply size', 'applySize') + '</div>') +
     '<label class="f inline"><input type="checkbox" id="pScale" checked>Scale objects and styles with the canvas (same aspect only)</label>');
-  h += sec('Project file', row('c3', btn('New…', 'newDoc') + btn('Open…', 'open') + btn('Save', 'save')) + row('c2', btn('Layouts…', 'templates') + btn('Clear autosave', 'clearAuto')) +
+  h += sec('Project file', row('c3', btn('New', 'newDoc') + btn('Open…', 'open') + btn('Save', 'save')) + row('c2', btn('Layouts…', 'templates') + btn('Clear autosave', 'clearAuto')) +
     '<div class="note">Autosave keeps the current project in this browser after every change. Save the JSON for anything you need to keep.</div>');
   h += csec('prKeys', 'Keyboard shortcuts', '<div class="keys">' + SHORTCUTS.slice(0, 8).map(function (s) { return '<kbd>' + s[0] + '</kbd><span>' + s[1] + '</span>'; }).join('') + '</div>' + btn('All shortcuts', 'help'), false);
   return h;
@@ -2128,7 +2224,19 @@ var ACTIONS = {
   lockAr: function () { setLockAspect(!ui.lockAspect); buildTab(); },
   centerH: function () { selObjs().forEach(function (o) { o.x = (doc.canvas.w - o.w) / 2; }); syncFields(); commit(); },
   centerV: function () { selObjs().forEach(function (o) { o.y = (doc.canvas.h - o.h) / 2; }); syncFields(); commit(); },
-  match169: function () { selObjs().forEach(function (o) { var a = PIPE.aspectOf(o.src); o.h = Math.round(o.w / a); }); syncFields(); commit(); },
+  match169: function () { selObjs().forEach(function (o) { var a = PIPE.croppedAspect(o.src); o.h = Math.round(o.w / a); }); syncFields(); commit(); },
+  cropMode: function () { toggleCrop(); },
+  cropReset: function () {
+    var n = 0;
+    selObjs().forEach(function (o) {
+      var c = PIPE.cropOf(o.src); if (!o.slot || !(c.l || c.t || c.r || c.b)) return;
+      var P = sourceRect(o); o.src.crop = { l: 0, t: 0, r: 0, b: 0 }; n++;
+      o.x = P.x; o.y = P.y; o.w = P.w; o.h = P.h;
+      if (ui.snap) { o.x = Math.round(o.x); o.y = Math.round(o.y); o.w = Math.round(o.w); o.h = Math.round(o.h); }
+    });
+    if (!n) { toast('Nothing is cropped.'); return; }
+    commit(); buildTab(); draw(); toast('Crop removed: the box shows the whole picture again.');
+  },
   circle: function () { selObjs().forEach(function (o) { var m = Math.min(o.w, o.h); o.w = o.h = m; }); syncFields(); commit(); },
   toFront: function () { reorder(2); }, toBack: function () { reorder(-2); }, fwd: function () { reorder(1); }, bwd: function () { reorder(-1); },
   dup: function () { duplicate(20, 20); }, del: function () { deleteSel(); },
@@ -2176,7 +2284,7 @@ var ACTIONS = {
   verify: function () { verifyReadBack(); },
   applySize: function () { setCanvasSize(+$('#pW').value, +$('#pH').value, $('#pScale').checked); },
   pack: function () { exportPack(); }, expBack: function () { exportPlane('back'); }, expFront: function () { exportPlane('front'); }, expPreview: function () { exportPreviewOnly(); },
-  newDoc: function () { if (!confirm('Start a new blank project? (Undo can bring the current one back.)')) return; var d = PIPE.newDoc(doc.canvas.w, doc.canvas.h); d.vmix = doc.vmix; d.frontMask = PIPE.newDoc().frontMask; doc = d; sel = []; commit(); buildAll(); fitView(); },
+  newDoc: function () { newProject(); },
   open: function () { $('#fileOpen').click(); }, save: function () { saveProject(); }, templates: function () { openTemplates(); },
   clearAuto: function () { try { localStorage.removeItem(LS_AUTO); } catch (e) { } toast('Autosave cleared (it will save again on the next change).'); },
   help: function () { openHelp(); }
@@ -2470,6 +2578,14 @@ $('#viewMenu').addEventListener('click', function (e) { e.stopPropagation(); });
 document.addEventListener('click', function () { $('#exportMenu').classList.remove('open'); $('#viewMenu').classList.remove('open'); });
 document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { $('#exportMenu').classList.remove('open'); $('#viewMenu').classList.remove('open'); } });
 $('#lockArBtn').addEventListener('click', function () { setLockAspect(!ui.lockAspect); });
+// Clean slate: no objects, default styles and mask, same canvas size and vMix connection. Undo brings the old project back.
+function newProject() {
+  var d = PIPE.newDoc(doc.canvas.w, doc.canvas.h); d.vmix = doc.vmix;
+  doc = d; sel = []; cropId = null; cardCache = {}; setTool('select'); setTab('object');
+  commit(); buildAll(); fitView();
+  toast('New blank project. Pick a Layout or draw a box. Undo (Ctrl+Z) brings the last one back.', false, 6000);
+}
+$('#newBtn').addEventListener('click', newProject);
 $('#exportMenu').addEventListener('click', function (e) {
   var b = e.target.closest('[data-exp]'); if (!b) return;
   var k = b.dataset.exp;
@@ -2601,7 +2717,7 @@ function buildAll() { syncCanvasUi(); buildObjList(); lastSelKey = '?'; selectio
   requestRender(false);
   if (restored) toast('Restored your last session from autosave');
   // test hooks (used by the automated checks; harmless otherwise)
-  window.__pip = { testBuild: TESTBUILD, get ui() { return ui; }, setLockAspect: setLockAspect, keys: { auto: LS_AUTO, presets: LS_PRESETS, ui: LS_UI }, get doc() { return doc; }, set doc(d) { doc = PIPE.migrate(d); commit(); buildAll(); }, sel: function (ids) { sel = ids; selectionChanged(); }, render: R, exportPack: exportPack, undo: undo, redo: redo, hist: hist, setCanvasSize: setCanvasSize, loadTemplate: function (i) { loadTemplate(TEMPLATES[i]); }, templates: TEMPLATES.map(function (t) { return t.name; }), view: view };
+  window.__pip = { testBuild: TESTBUILD, get cropId() { return cropId; }, vmixFor: function (o) { return PIPE.vmixFor(doc, o); }, get ui() { return ui; }, setLockAspect: setLockAspect, keys: { auto: LS_AUTO, presets: LS_PRESETS, ui: LS_UI }, get doc() { return doc; }, set doc(d) { doc = PIPE.migrate(d); commit(); buildAll(); }, sel: function (ids) { sel = ids; selectionChanged(); }, render: R, exportPack: exportPack, undo: undo, redo: redo, hist: hist, setCanvasSize: setCanvasSize, loadTemplate: function (i) { loadTemplate(TEMPLATES[i]); }, templates: TEMPLATES.map(function (t) { return t.name; }), view: view };
 })();
 })();
 </script>

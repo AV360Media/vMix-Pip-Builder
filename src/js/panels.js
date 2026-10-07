@@ -18,7 +18,7 @@ function lockArBtn() { return '<div class="f"><label>&nbsp;</label><button class
 
 function tabObject() {
   var o = firstSel(); if (!o) return noSel();
-  var multi = sel.length > 1, h = '', asp = o.src.aspect === 'custom' ? 'source' : o.src.aspect;
+  var multi = sel.length > 1, h = '', cq = PIPE.cropOf(o.src), asp = o.src.aspect === 'custom' || cq.l || cq.t || cq.r || cq.b ? 'source' : o.src.aspect;
   h += sec(multi ? sel.length + ' objects selected' : o.slot ? 'Video slot' : 'Decoration',
     row('c2', fTxt('Name', 'name') + (o.slot ? fNum('Slot number', 'slotNum', { min: 0, max: 99 }) : fSel('Drawn on', 'plane', [['back', 'Back plate (behind video)'], ['front', 'Front mask (over video)']], { rebuild: 1 }))) +
     fChk('A vMix source sits here' + (o.slot ? ' (layer ' + PIPE.layerOf(doc, o) + ')' : ''), 'slot', { rebuild: 1, title: 'Untick for a decoration: a shape that gets no vMix layer.' }));
@@ -26,6 +26,14 @@ function tabObject() {
     row('c2', fNum('X (left)', 'x', { step: 1 }) + fNum('Y (top)', 'y', { step: 1 })) +
     row('c3', btn('Centre H', 'centerH') + btn('Centre V', 'centerV') + btn('Match ' + esc(asp), 'match169', ' title="Set the height so the box matches its source shape"')) +
     '<div class="note">' + (ui.lockAspect ? 'Ratio locked: resizing keeps the shape. Hold Shift while dragging to break it once.' : 'Ratio unlocked: width and height change freely.') + ' Right / bottom edge: <span id="edgeInfo"></span></div>');
+  if (o.slot && !multi) {
+    var cp = PIPE.cropOf(o.src), isCrop = cropId === o.id, anyCrop = cp.l || cp.t || cp.r || cp.b;
+    h += csec('obCrop', 'Crop', row('', fNum('Left %', 'src.crop.l', { k: 100, min: 0, max: 98, step: 0.5, special: 'crop' }) + fNum('Right %', 'src.crop.r', { k: 100, min: 0, max: 98, step: 0.5, special: 'crop' }) +
+        fNum('Top %', 'src.crop.t', { k: 100, min: 0, max: 98, step: 0.5, special: 'crop' }) + fNum('Bottom %', 'src.crop.b', { k: 100, min: 0, max: 98, step: 0.5, special: 'crop' })) +
+      row('c2', btn(isCrop ? 'Done cropping' : 'Crop on canvas (C)', 'cropMode', isCrop ? ' class="primary"' : '') + btn('Remove crop', 'cropReset')) +
+      '<div class="note">Trims the source picture. The picture keeps its size and position, so the box shrinks to what is left. Percentages are of the whole source.</div>',
+      !!(anyCrop || isCrop), anyCrop ? 'cropped' : 'none');
+  }
   if (o.type === 'rrect') {
     h += sec('Corners', row('', fNum('Top L', 'radii.0', { min: 0, special: 'radius' }) + fNum('Top R', 'radii.1', { min: 0, special: 'radius' }) + fNum('Bot R', 'radii.2', { min: 0, special: 'radius' }) + fNum('Bot L', 'radii.3', { min: 0, special: 'radius' })) +
       row('c3', '<label class="f inline"><input type="checkbox" id="linkR"' + (linkRadii ? ' checked' : '') + '>Link corners</label>' + fSel('Corner shape', 'cornerStyle', [['round', 'Circular'], ['squircle', 'Squircle']], { rebuild: 1 }) + (o.cornerStyle === 'squircle' ? fNum('Smoothness', 'smooth', { min: 2, max: 12, step: 0.5, title: '2 = circular, 4-5 = squircle, higher = squarer' }) : '')));
@@ -107,7 +115,8 @@ function sourceSection(o) {
   return sec('Source for "' + esc(o.name || 'Slot') + '"', row('c2', fTxt('vMix source input', 'src.source', { ph: 'e.g. Cam 1 or 3' }) + fNum('Layer (0 = auto)', 'src.layer', { min: 0, max: 10 })) +
     row('c3', fSel('Source aspect', 'src.aspect', Object.keys(PIPE.ASPECTS).map(function (k) { return [k, k]; }).concat([['custom', 'Custom']]), { rebuild: 1 }) +
       fSel('Placement', 'src.mode', [['fill', 'Fill (crop)'], ['fit', 'Fit (letterbox)']]) + '<span></span>') +
-    (o.src.aspect === 'custom' ? row('c2', fNum('Aspect W', 'src.cw', { min: 0.01, step: 0.01 }) + fNum('Aspect H', 'src.ch', { min: 0.01, step: 0.01 })) : ''));
+    (o.src.aspect === 'custom' ? row('c2', fNum('Aspect W', 'src.cw', { min: 0.01, step: 0.01 }) + fNum('Aspect H', 'src.ch', { min: 0.01, step: 0.01 })) : '') +
+    (function () { var c = PIPE.cropOf(o.src); return c.l || c.t || c.r || c.b ? '<div class="note">Cropped: left ' + fmt(c.l * 100, 1) + ' %, right ' + fmt(c.r * 100, 1) + ' %, top ' + fmt(c.t * 100, 1) + ' %, bottom ' + fmt(c.b * 100, 1) + ' %. Change it on the Object tab or press C.</div>' : ''; })());
 }
 function cmdList(cmds) {
   return cmds.map(function (c, i) { return '<div class="cmd"><code title="' + esc(c.url) + '">' + esc(c.url) + '</code><button data-act="copyUrl" data-url="' + esc(c.url) + '">Copy</button></div>'; }).join('');
@@ -176,7 +185,7 @@ function tabProject() {
     '<div class="note">All PNGs are exactly ' + doc.canvas.w + '×' + doc.canvas.h + ' px, 8-bit straight (non-premultiplied) alpha, no gamma or colour profile chunks.</div>');
   h += sec('Canvas', row('c3', '<div class="f"><label>Width</label><input type="number" id="pW" min="16" max="8192" value="' + doc.canvas.w + '"></div><div class="f"><label>Height</label><input type="number" id="pH" min="16" max="8192" value="' + doc.canvas.h + '"></div><div class="f"><label>&nbsp;</label>' + btn('Apply size', 'applySize') + '</div>') +
     '<label class="f inline"><input type="checkbox" id="pScale" checked>Scale objects and styles with the canvas (same aspect only)</label>');
-  h += sec('Project file', row('c3', btn('New…', 'newDoc') + btn('Open…', 'open') + btn('Save', 'save')) + row('c2', btn('Layouts…', 'templates') + btn('Clear autosave', 'clearAuto')) +
+  h += sec('Project file', row('c3', btn('New', 'newDoc') + btn('Open…', 'open') + btn('Save', 'save')) + row('c2', btn('Layouts…', 'templates') + btn('Clear autosave', 'clearAuto')) +
     '<div class="note">Autosave keeps the current project in this browser after every change. Save the JSON for anything you need to keep.</div>');
   h += csec('prKeys', 'Keyboard shortcuts', '<div class="keys">' + SHORTCUTS.slice(0, 8).map(function (s) { return '<kbd>' + s[0] + '</kbd><span>' + s[1] + '</span>'; }).join('') + '</div>' + btn('All shortcuts', 'help'), false);
   return h;
@@ -194,7 +203,19 @@ var ACTIONS = {
   lockAr: function () { setLockAspect(!ui.lockAspect); buildTab(); },
   centerH: function () { selObjs().forEach(function (o) { o.x = (doc.canvas.w - o.w) / 2; }); syncFields(); commit(); },
   centerV: function () { selObjs().forEach(function (o) { o.y = (doc.canvas.h - o.h) / 2; }); syncFields(); commit(); },
-  match169: function () { selObjs().forEach(function (o) { var a = PIPE.aspectOf(o.src); o.h = Math.round(o.w / a); }); syncFields(); commit(); },
+  match169: function () { selObjs().forEach(function (o) { var a = PIPE.croppedAspect(o.src); o.h = Math.round(o.w / a); }); syncFields(); commit(); },
+  cropMode: function () { toggleCrop(); },
+  cropReset: function () {
+    var n = 0;
+    selObjs().forEach(function (o) {
+      var c = PIPE.cropOf(o.src); if (!o.slot || !(c.l || c.t || c.r || c.b)) return;
+      var P = sourceRect(o); o.src.crop = { l: 0, t: 0, r: 0, b: 0 }; n++;
+      o.x = P.x; o.y = P.y; o.w = P.w; o.h = P.h;
+      if (ui.snap) { o.x = Math.round(o.x); o.y = Math.round(o.y); o.w = Math.round(o.w); o.h = Math.round(o.h); }
+    });
+    if (!n) { toast('Nothing is cropped.'); return; }
+    commit(); buildTab(); draw(); toast('Crop removed: the box shows the whole picture again.');
+  },
   circle: function () { selObjs().forEach(function (o) { var m = Math.min(o.w, o.h); o.w = o.h = m; }); syncFields(); commit(); },
   toFront: function () { reorder(2); }, toBack: function () { reorder(-2); }, fwd: function () { reorder(1); }, bwd: function () { reorder(-1); },
   dup: function () { duplicate(20, 20); }, del: function () { deleteSel(); },
@@ -242,7 +263,7 @@ var ACTIONS = {
   verify: function () { verifyReadBack(); },
   applySize: function () { setCanvasSize(+$('#pW').value, +$('#pH').value, $('#pScale').checked); },
   pack: function () { exportPack(); }, expBack: function () { exportPlane('back'); }, expFront: function () { exportPlane('front'); }, expPreview: function () { exportPreviewOnly(); },
-  newDoc: function () { if (!confirm('Start a new blank project? (Undo can bring the current one back.)')) return; var d = PIPE.newDoc(doc.canvas.w, doc.canvas.h); d.vmix = doc.vmix; d.frontMask = PIPE.newDoc().frontMask; doc = d; sel = []; commit(); buildAll(); fitView(); },
+  newDoc: function () { newProject(); },
   open: function () { $('#fileOpen').click(); }, save: function () { saveProject(); }, templates: function () { openTemplates(); },
   clearAuto: function () { try { localStorage.removeItem(LS_AUTO); } catch (e) { } toast('Autosave cleared (it will save again on the next change).'); },
   help: function () { openHelp(); }
