@@ -12,24 +12,26 @@ function buildTab() {
   syncFields();
   refreshComputed();
 }
-function noSel(msg) { return '<p class="note">' + (msg || 'Select an object on the canvas or in the list.') + '</p>' + '<p class="note">Draw with the tools on the left, or press <b>T</b> for a layout template.</p>'; }
+function noSel(msg) { return '<p class="note">' + (msg || 'Click a box on the canvas, or in the list above, to edit it.') + '</p>' + '<p class="note">Start from <b>Layouts…</b> in the top bar (T), or draw a box with the tools on the left.</p>'; }
+var LOCK_SVG = '<svg class="lk-on" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V8a4 4 0 018 0v3"/></svg><svg class="lk-off" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V8a4 4 0 017.5-2"/></svg>';
+function lockArBtn() { return '<div class="f"><label>&nbsp;</label><button class="tog' + (ui.lockAspect ? ' on' : '') + '" data-lockar data-act="lockAr" aria-pressed="' + !!ui.lockAspect + '">' + LOCK_SVG + '<span class="lt"></span></button></div>'; }
 
 function tabObject() {
   var o = firstSel(); if (!o) return noSel();
-  var multi = sel.length > 1, h = '';
-  h += sec('Identity', row('c2', fTxt('Name', 'name') + (o.slot ? fNum('Slot number', 'slotNum', { min: 0, max: 99 }) : fSel('Plane', 'plane', [['back', 'Back plate (behind video)'], ['front', 'Front mask (over video)']], { rebuild: 1 }))) +
-    row('c2', fChk('Video slot', 'slot', { rebuild: 1, title: 'A slot is where a vMix source sits. It gets a layer and vMix values.' }) + '<span class="note">' + (o.slot ? 'Source sits here (vMix layer ' + PIPE.layerOf(doc, o) + ')' : 'Decoration only') + '</span>') +
-    row('c2', fChk('Locked', 'locked', { rebuild: 1 }) + fChk('Hidden', 'hidden')));
-  h += sec('Position and size (canvas px)', row('', fNum('X', 'x', { step: 1 }) + fNum('Y', 'y', { step: 1 }) + fNum('W', 'w', { step: 1, min: 1 }) + fNum('H', 'h', { step: 1, min: 1 })) +
-    row('c3', btn('Centre H', 'centerH') + btn('Centre V', 'centerV') + btn('Match 16:9', 'match169')) +
-    '<div class="note">Right / bottom edge: <span id="edgeInfo"></span></div>');
-  if (o.type === 'rrect' && !multi || o.type === 'rrect') {
+  var multi = sel.length > 1, h = '', asp = o.src.aspect === 'custom' ? 'source' : o.src.aspect;
+  h += sec(multi ? sel.length + ' objects selected' : o.slot ? 'Video slot' : 'Decoration',
+    row('c2', fTxt('Name', 'name') + (o.slot ? fNum('Slot number', 'slotNum', { min: 0, max: 99 }) : fSel('Drawn on', 'plane', [['back', 'Back plate (behind video)'], ['front', 'Front mask (over video)']], { rebuild: 1 }))) +
+    fChk('A vMix source sits here' + (o.slot ? ' (layer ' + PIPE.layerOf(doc, o) + ')' : ''), 'slot', { rebuild: 1, title: 'Untick for a decoration: a shape that gets no vMix layer.' }));
+  h += sec('Size and position', row('sizerow', fNum('Width', 'w', { step: 1, min: 1 }) + lockArBtn() + fNum('Height', 'h', { step: 1, min: 1 })) +
+    row('c2', fNum('X (left)', 'x', { step: 1 }) + fNum('Y (top)', 'y', { step: 1 })) +
+    row('c3', btn('Centre H', 'centerH') + btn('Centre V', 'centerV') + btn('Match ' + esc(asp), 'match169', ' title="Set the height so the box matches its source shape"')) +
+    '<div class="note">' + (ui.lockAspect ? 'Ratio locked: resizing keeps the shape. Hold Shift while dragging to break it once.' : 'Ratio unlocked: width and height change freely.') + ' Right / bottom edge: <span id="edgeInfo"></span></div>');
+  if (o.type === 'rrect') {
     h += sec('Corners', row('', fNum('Top L', 'radii.0', { min: 0, special: 'radius' }) + fNum('Top R', 'radii.1', { min: 0, special: 'radius' }) + fNum('Bot R', 'radii.2', { min: 0, special: 'radius' }) + fNum('Bot L', 'radii.3', { min: 0, special: 'radius' })) +
       row('c3', '<label class="f inline"><input type="checkbox" id="linkR"' + (linkRadii ? ' checked' : '') + '>Link corners</label>' + fSel('Corner shape', 'cornerStyle', [['round', 'Circular'], ['squircle', 'Squircle']], { rebuild: 1 }) + (o.cornerStyle === 'squircle' ? fNum('Smoothness', 'smooth', { min: 2, max: 12, step: 0.5, title: '2 = circular, 4-5 = squircle, higher = squarer' }) : '')));
   }
-  if (o.type === 'line') h += sec('Line', row('c2', fSel('Ends', 'caps', [['butt', 'Square'], ['round', 'Round']])) + '<div class="note">Thickness is the shorter of W and H.</div>');
+  if (o.type === 'line') h += sec('Line', row('c2', fSel('Ends', 'caps', [['butt', 'Square'], ['round', 'Round']])) + '<div class="note">Thickness is the shorter of width and height.</div>');
   if (o.type === 'ellipse') h += sec('Ellipse', btn('Make circle (W = H)', 'circle'));
-  h += sec('Arrange', row('c3', btn('To front', 'toFront') + btn('Forward', 'fwd') + btn('Backward', 'bwd')) + row('c3', btn('To back', 'toBack') + btn('Duplicate', 'dup') + btn('Delete', 'del')));
   return h;
 }
 
@@ -56,9 +58,9 @@ function shadowItem(kind, sh, i) {
 function tabStyle() {
   var o = firstSel(); if (!o) return noSel();
   var st = o.style, h = '', pres = allPresets();
-  h += sec('Style presets', row('c2', '<div class="f"><label>Preset</label><select id="presetSel">' + pres.map(function (p, i) { return '<option value="' + i + '"' + (i === presetPick ? ' selected' : '') + '>' + esc(p.name) + (p.builtin ? '' : ' ★') + '</option>'; }).join('') + '</select></div>' + '<div class="f"><label>&nbsp;</label>' + btn('Apply to selection', 'presetApply') + '</div>') +
-    row('c3', btn('Save current…', 'presetSave') + btn('Delete', 'presetDel') + btn('Export…', 'presetExport')) + row('c3', btn('Import…', 'presetImport')) +
-    '<div class="note">★ = yours. Saved in this browser; Export to move them between machines. Presets also carry corner radii.</div>');
+  h += csec('stPresets', 'Style presets', row('c2', '<div class="f"><label>Preset</label><select id="presetSel">' + pres.map(function (p, i) { return '<option value="' + i + '"' + (i === presetPick ? ' selected' : '') + '>' + esc(p.name) + (p.builtin ? '' : ' ★') + '</option>'; }).join('') + '</select></div>' + '<div class="f"><label>&nbsp;</label>' + btn('Apply to selection', 'presetApply') + '</div>') +
+    row('', btn('Save…', 'presetSave', ' title="Save this object\'s look as a new preset"') + btn('Delete', 'presetDel') + btn('Export…', 'presetExport') + btn('Import…', 'presetImport')) +
+    '<div class="note">★ = yours. Saved in this browser; Export to move them between machines. Presets also carry corner radii.</div>', true);
   var f = st.fill;
   var fillBody = row('c2', fChk('Fill on', 'style.fill.enabled') + fSel('Type', 'style.fill.type', [['solid', 'Solid'], ['linear', 'Linear gradient'], ['radial', 'Radial gradient']], { rebuild: 1 }));
   if (f.type === 'solid' || !f.type) fillBody += row('c2', fColor('Colour', 'style.fill.color') + fNum('Opacity %', 'style.fill.alpha', { k: 100, min: 0, max: 100 }));
@@ -71,33 +73,34 @@ function tabStyle() {
     });
     fillBody += btn('+ Add stop', 'addStop');
   }
-  h += sec('Fill', fillBody);
-  h += sec('Stroke', row('c2', fChk('Stroke on', 'style.stroke.enabled') + fSel('Align', 'style.stroke.align', [['inside', 'Inside'], ['center', 'Centre'], ['outside', 'Outside']])) +
+  h += csec('stFill', 'Fill', fillBody, true, f.enabled ? '' : 'off');
+  h += csec('stStroke', 'Border', row('c2', fChk('Border on', 'style.stroke.enabled') + fSel('Align', 'style.stroke.align', [['inside', 'Inside'], ['center', 'Centre'], ['outside', 'Outside']])) +
     row('c3', fNum('Width', 'style.stroke.width', { min: 0, step: 0.5 }) + fColor('Colour', 'style.stroke.color') + fNum('Opacity %', 'style.stroke.alpha', { k: 100, min: 0, max: 100 })) +
-    (o.slot && doc.frontMask.includeStroke ? '<div class="note">Slot borders are drawn in the front mask (over the video). Change this on the Mask tab.</div>' : ''));
-  h += sec('Drop shadows', (st.shadows || []).map(function (s, i) { return shadowItem('shadows', s, i); }).join('') +
-    row('c2', btn('+ Add shadow', 'add-shadows') + '<span class="note">Blur matches CSS box-shadow (σ = blur ÷ 2).</span>'));
-  h += sec('Inner shadows', (st.innerShadows || []).map(function (s, i) { return shadowItem('innerShadows', s, i); }).join('') + btn('+ Add inner shadow', 'add-innerShadows') +
-    (o.slot && doc.frontMask.includeInner ? '<div class="note">Slot inner shadows are drawn in the front mask, over the video.</div>' : '<div class="note">Inner shadows on a slot sit under the video unless the Mask tab moves them to the front mask.</div>'));
-  h += sec('Outer glow', row('c2', fChk('Glow on', 'style.glow.enabled') + fColor('Colour', 'style.glow.color')) + row('c3', fNum('Blur', 'style.glow.blur', { min: 0 }) + fNum('Spread', 'style.glow.spread') + fNum('Opacity %', 'style.glow.opacity', { k: 100, min: 0, max: 100 })));
-  h += sec('Edges and vMix behaviour', row('c2', fNum('Soft edge feather px', 'style.feather', { min: 0, step: 0.5 }) + '<span></span>') +
+    (o.slot && doc.frontMask.includeStroke ? '<div class="note">Slot borders are drawn in the front mask (over the video). Change this on the Mask tab.</div>' : ''), true, st.stroke.enabled ? fmt(st.stroke.width) + ' px' : 'off');
+  h += csec('stShadows', 'Drop shadows', (st.shadows || []).map(function (s, i) { return shadowItem('shadows', s, i); }).join('') +
+    row('c2', btn('+ Add shadow', 'add-shadows') + '<span class="note">Blur matches CSS box-shadow (σ = blur ÷ 2).</span>'), true, (st.shadows || []).length ? st.shadows.length + '' : 'none');
+  var nIn = (st.innerShadows || []).length;
+  h += csec('stInner', 'Inner shadows', (st.innerShadows || []).map(function (s, i) { return shadowItem('innerShadows', s, i); }).join('') + btn('+ Add inner shadow', 'add-innerShadows') +
+    (o.slot && doc.frontMask.includeInner ? '<div class="note">Slot inner shadows are drawn in the front mask, over the video.</div>' : '<div class="note">Inner shadows on a slot sit under the video unless the Mask tab moves them to the front mask.</div>'), nIn > 0, nIn ? nIn + '' : 'none');
+  h += csec('stGlow', 'Outer glow', row('c2', fChk('Glow on', 'style.glow.enabled') + fColor('Colour', 'style.glow.color')) + row('c3', fNum('Blur', 'style.glow.blur', { min: 0 }) + fNum('Spread', 'style.glow.spread') + fNum('Opacity %', 'style.glow.opacity', { k: 100, min: 0, max: 100 })), !!st.glow.enabled, st.glow.enabled ? '' : 'off');
+  h += csec('stEdges', 'Knockout, shadow only, feather', row('c2', fNum('Soft edge feather px', 'style.feather', { min: 0, step: 0.5 }) + '<span></span>') +
     row('c2', fChk('Knockout', 'style.knockout', { title: 'Clear the fill and everything beneath inside the shape, so the source shows through cleanly.' }) + fChk('Shadow only', 'style.shadowOnly', { title: 'Draw only shadows and glow. No fill or border.' })) +
-    '<div class="note">Knockout cuts a clean hole in the back plate where the source sits. Shadow only keeps just the shadows and glow.</div>');
-  h += sec('Paste CSS box-shadow', '<textarea id="cssShadow" rows="2" placeholder="0 16px 48px rgba(0,0,0,.55), inset 0 2px 6px #0008" spellcheck="false"></textarea>' + row('c2', btn('Apply to selection', 'cssApply') + btn('Copy as CSS', 'cssCopy')));
+    '<div class="note">Knockout cuts a clean hole in the back plate where the source sits. Shadow only keeps just the shadows and glow.</div>', false, [st.knockout ? 'knockout' : '', st.shadowOnly ? 'shadow only' : '', st.feather ? 'feather ' + fmt(st.feather) : ''].filter(Boolean).join(', '));
+  h += csec('stCss', 'CSS box-shadow', '<textarea id="cssShadow" rows="2" placeholder="0 16px 48px rgba(0,0,0,.55), inset 0 2px 6px #0008" spellcheck="false"></textarea>' + row('c2', btn('Apply to selection', 'cssApply') + btn('Copy as CSS', 'cssCopy')), false, 'paste or copy');
   return h;
 }
 
 function tabVmix() {
   var v = doc.vmix, o = firstSel(), h = '';
-  h += sec('Connection', row('c2', fTxt('vMix host', 'vmix.host', { doc: 1 }) + fNum('Port', 'vmix.port', { doc: 1, min: 1, max: 65535 })) +
+  var conn = csec('vmConn', 'vMix connection', row('c2', fTxt('vMix host', 'vmix.host', { doc: 1 }) + fNum('Port', 'vmix.port', { doc: 1, min: 1, max: 65535 })) +
     row('c2', fTxt('Back plate input (name / number)', 'vmix.input', { doc: 1 }) + fTxt('Front mask input', 'vmix.maskInput', { doc: 1 })) +
     row('c2', fNum('Front mask layer (0 = auto)', 'vmix.maskLayer', { doc: 1, min: 0, max: 10 }) + fSel('Position method', 'vmix.method', [['zoompan', 'Zoom + Pan + Crop'], ['rectangle', 'Rectangle (px) + Crop']], { doc: 1 })) +
     row('c3', fNum('Output W', 'vmix.outW', { doc: 1, min: 16, max: 8192 }) + fNum('Output H', 'vmix.outH', { doc: 1, min: 16, max: 8192 }) + '<div class="f"><label>&nbsp;</label>' + btn('= canvas', 'outMatch') + '</div>') +
     '<div class="note">Output size = vMix Settings &gt; Display preset resolution. Pixel values (Rectangle) use it; zoom and pan do not depend on it.</div>' +
     row('c2', fSel('Send via', 'vmix.sendMode', [['direct', 'Direct (fire and forget)'], ['relay', 'Relay helper (confirmed)']], { doc: 1, rebuild: 1 }) + (v.sendMode === 'relay' ? fTxt('Relay URL', 'vmix.relay', { doc: 1 }) : '<span></span>')) +
-    (v.sendMode === 'relay' ? row('c2', fTxt('Web Controller user', 'vmix.user', { doc: 1, ph: 'only if a password is set' }) + '<div class="f"><label>Password (not saved)</label><input type="password" id="vmPass" value="' + esc(session.pass) + '"></div>') + row('c3', btn('Test relay', 'relayPing') + btn('Read back', 'verify') + '<span></span>') : '<div class="note">Direct sends from this page cannot see vMix\'s reply (no CORS headers), and Chrome may block LAN addresses. Use the relay helper for confirmation, read back and password support.</div>'));
-  h += '<div id="vmSrc">' + (o && o.slot && sel.length === 1 ? sourceSection(o) : '') + '</div><div id="vmComputed"></div>';
-  h += '<div id="verifyOut"></div>';
+    (v.sendMode === 'relay' ? row('c2', fTxt('Web Controller user', 'vmix.user', { doc: 1, ph: 'only if a password is set' }) + '<div class="f"><label>Password (not saved)</label><input type="password" id="vmPass" value="' + esc(session.pass) + '"></div>') + row('c3', btn('Test relay', 'relayPing') + btn('Read back', 'verify') + '<span></span>') : '<div class="note">Direct sends from this page cannot see vMix\'s reply (no CORS headers), and Chrome may block LAN addresses. Use the relay helper for confirmation, read back and password support.</div>'), false, esc(v.host + ':' + v.port) + ' · ' + (v.sendMode === 'relay' ? 'relay' : 'direct'));
+  h += '<div id="vmSrc">' + (o && o.slot && sel.length === 1 ? sourceSection(o) : !o ? '<p class="note">Click a video slot to set its source and see its vMix values.</p>' : '') + '</div><div id="vmComputed"></div>';
+  h += conn + '<div id="verifyOut"></div>';
   return h;
 }
 function sourceSection(o) {
@@ -149,9 +152,9 @@ function tabMask() {
     '<div class="note">' + (fm.surround === 'backplate' ? 'Copies the back plate into the video area outside each slot window, so the video corners take the back plate\'s look. Only covers pixels the video occupies, so nothing is doubled.' : fm.surround === 'color' ? 'A solid colour outside the windows. "Whole canvas" makes the mask a full frame graphic with holes.' : 'No surround: the mask carries only borders, inner shadows and highlights. Video corners stay square.') + '</div>');
   h += sec('Drawn over the video', fChk('Slot borders in the front mask', 'frontMask.includeStroke', { doc: 1, rebuild: 1 }) + fChk('Slot inner shadows in the front mask', 'frontMask.includeInner', { doc: 1, rebuild: 1 }) +
     '<div class="note">When on, these are left out of the back plate so nothing doubles up.</div>');
-  h += sec('Inner edge highlight', row('c2', fChk('On', 'frontMask.highlight.enabled', { doc: 1 }) + fColor('Colour', 'frontMask.highlight.color', { doc: 1 })) +
+  h += csec('mkHi', 'Inner edge highlight', row('c2', fChk('On', 'frontMask.highlight.enabled', { doc: 1 }) + fColor('Colour', 'frontMask.highlight.color', { doc: 1 })) +
     row('c3', fNum('Width', 'frontMask.highlight.width', { doc: 1, min: 0, step: 0.5 }) + fNum('Blur', 'frontMask.highlight.blur', { doc: 1, min: 0 }) + fNum('Opacity %', 'frontMask.highlight.opacity', { doc: 1, k: 100, min: 0, max: 100 })) +
-    '<div class="note">A soft light line just inside every slot edge, over the video.</div>');
+    '<div class="note">A soft light line just inside every slot edge, over the video.</div>', !!fm.highlight.enabled, fm.highlight.enabled ? '' : 'off');
   h += sec('Checks', '<div id="warnList"></div>');
   return h;
 }
@@ -167,15 +170,15 @@ tb.addEventListener('click', function (e) { var w = e.target.closest('[data-wid]
 
 function tabProject() {
   var h = '';
-  h += sec('Canvas', row('c3', '<div class="f"><label>Width</label><input type="number" id="pW" min="16" max="8192" value="' + doc.canvas.w + '"></div><div class="f"><label>Height</label><input type="number" id="pH" min="16" max="8192" value="' + doc.canvas.h + '"></div><div class="f"><label>&nbsp;</label>' + btn('Apply size', 'applySize') + '</div>') +
-    '<label class="f inline"><input type="checkbox" id="pScale" checked>Scale objects and styles with the canvas (same aspect only)</label>');
   h += sec('Export', row('c2', fTxt('File name prefix', 'exportOpts.baseName', { doc: 1 }) + '<span></span>') +
     fChk('Dither (stops banding in soft shadows and gradients)', 'exportOpts.dither', { doc: 1 }) + fChk('Edge colour padding (safe if vMix scales the PNG)', 'exportOpts.edgePad', { doc: 1 }) +
     row('c2', btn('Export Pack (ZIP)', 'pack', ' class="primary"') + btn('Back plate PNG', 'expBack')) + row('c2', btn('Front mask PNG', 'expFront') + btn('Preview PNG', 'expPreview')) +
     '<div class="note">All PNGs are exactly ' + doc.canvas.w + '×' + doc.canvas.h + ' px, 8-bit straight (non-premultiplied) alpha, no gamma or colour profile chunks.</div>');
-  h += sec('Project file', row('c3', btn('New…', 'newDoc') + btn('Open…', 'open') + btn('Save', 'save')) + row('c2', btn('Templates…', 'templates') + btn('Clear autosave', 'clearAuto')) +
+  h += sec('Canvas', row('c3', '<div class="f"><label>Width</label><input type="number" id="pW" min="16" max="8192" value="' + doc.canvas.w + '"></div><div class="f"><label>Height</label><input type="number" id="pH" min="16" max="8192" value="' + doc.canvas.h + '"></div><div class="f"><label>&nbsp;</label>' + btn('Apply size', 'applySize') + '</div>') +
+    '<label class="f inline"><input type="checkbox" id="pScale" checked>Scale objects and styles with the canvas (same aspect only)</label>');
+  h += sec('Project file', row('c3', btn('New…', 'newDoc') + btn('Open…', 'open') + btn('Save', 'save')) + row('c2', btn('Layouts…', 'templates') + btn('Clear autosave', 'clearAuto')) +
     '<div class="note">Autosave keeps the current project in this browser after every change. Save the JSON for anything you need to keep.</div>');
-  h += sec('Keyboard', '<div class="keys">' + SHORTCUTS.slice(0, 8).map(function (s) { return '<kbd>' + s[0] + '</kbd><span>' + s[1] + '</span>'; }).join('') + '</div>' + btn('All shortcuts', 'help'));
+  h += csec('prKeys', 'Keyboard shortcuts', '<div class="keys">' + SHORTCUTS.slice(0, 8).map(function (s) { return '<kbd>' + s[0] + '</kbd><span>' + s[1] + '</span>'; }).join('') + '</div>' + btn('All shortcuts', 'help'), false);
   return h;
 }
 
@@ -188,6 +191,7 @@ function copyText(t, what) {
 function fallbackCopy(t) { var ta = document.createElement('textarea'); ta.value = t; ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select(); var r = false; try { r = document.execCommand('copy'); } catch (e) { } ta.remove(); return r; }
 function newShadow(inner) { return { enabled: true, x: 0, y: inner ? 4 : 12, blur: inner ? 12 : 40, spread: 0, color: '#000000', opacity: 0.5 }; }
 var ACTIONS = {
+  lockAr: function () { setLockAspect(!ui.lockAspect); buildTab(); },
   centerH: function () { selObjs().forEach(function (o) { o.x = (doc.canvas.w - o.w) / 2; }); syncFields(); commit(); },
   centerV: function () { selObjs().forEach(function (o) { o.y = (doc.canvas.h - o.h) / 2; }); syncFields(); commit(); },
   match169: function () { selObjs().forEach(function (o) { var a = PIPE.aspectOf(o.src); o.h = Math.round(o.w / a); }); syncFields(); commit(); },

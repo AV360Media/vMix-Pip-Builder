@@ -119,6 +119,35 @@ dialog .db{padding:14px;max-height:75vh;overflow:auto}
 #toast.show{display:block}
 #toast.err{border-color:var(--err)}
 .hidden{display:none!important}
+.menu.pop{min-width:290px;padding:6px 10px 10px}
+.menu .mh{color:var(--faint);font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;margin:8px 0 4px}
+.menu .mh:first-child{margin-top:2px}
+.menu .mrow{display:grid;grid-template-columns:90px 1fr;align-items:center;gap:8px;margin:4px 0}
+.menu .mrow select,.menu .mrow button{width:100%}
+.menu .mrow button{display:block;text-align:center;border:1px solid var(--line2);background:var(--panel)}
+.menu .mchk{display:flex;align-items:center;gap:6px;margin:5px 0;cursor:pointer}
+#top .tog{display:inline-flex;align-items:center;gap:5px}
+#top .tog svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.8}
+#top .tog .lk-on{display:none}
+#top .tog.on{background:#1d3757;border-color:var(--accent);color:#fff}
+#top .tog.on .lk-on{display:block}
+#top .tog.on .lk-off{display:none}
+@media (max-width:1380px){#top .brand{display:none}#top{gap:6px}#top .grp{padding-right:6px}}
+#alignGrp{display:flex;flex-direction:column;align-items:center;gap:3px}
+#alignGrp.hidden{display:none}
+details.sec:not([open])>summary{border-bottom:0}
+details.sec>summary{list-style:none;cursor:pointer;user-select:none}
+details.sec>summary::-webkit-details-marker{display:none}
+details.sec>summary::before{content:'';flex:none;width:5px;height:5px;margin:0 4px 0 1px;border-right:1.5px solid var(--faint);border-bottom:1.5px solid var(--faint);transform:rotate(-45deg);transition:transform .12s}
+details.sec[open]>summary::before{transform:rotate(45deg) translate(-1px,-1px)}
+details.sec>summary .sum{color:var(--faint);font-weight:400;margin-left:6px;font-size:11px}
+.row.sizerow{display:grid;grid-template-columns:1fr auto 1fr;gap:6px;align-items:end}
+.sizerow .tog{height:28px;padding:0 6px;display:flex;align-items:center;justify-content:center}
+.sizerow .tog svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.8}
+.sizerow .tog .lk-on{display:none}.sizerow .tog .lt{display:none}
+.sizerow .tog.on{background:#1d3757;border-color:var(--accent);color:#fff}
+.sizerow .tog.on .lk-on{display:block}.sizerow .tog.on .lk-off{display:none}
+
 ::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-thumb{background:#2a3040;border-radius:5px;border:2px solid var(--panel)}::-webkit-scrollbar-track{background:transparent}
 </style>
 </head>
@@ -127,46 +156,32 @@ dialog .db{padding:14px;max-height:75vh;overflow:auto}
   <header id="top">
     <span class="brand">PIP Builder</span>
     <div class="grp">
-      <select id="canvasPreset" title="Canvas size">
+      <select id="canvasPreset" title="Canvas size: the exact pixel size of every exported PNG">
         <option value="1920x1080">1920 × 1080</option>
         <option value="3840x2160">3840 × 2160</option>
         <option value="1280x720">1280 × 720</option>
-        <option value="custom">Custom</option>
+        <option value="custom">Custom size…</option>
       </select>
       <span id="customWH" class="hidden"><input id="cw" type="number" min="16" max="8192" step="1"> × <input id="ch" type="number" min="16" max="8192" step="1"> <button id="applyWH">Set</button></span>
-      <span class="dims" id="dims" title="Exact export size in pixels">1920 × 1080 px</span>
-      <button id="layoutsBtn" title="Layout presets for this canvas size (T)">Layouts…</button>
+      <button id="layoutsBtn" title="Start from a layout preset sized to this canvas (T)">Layouts…</button>
     </div>
     <div class="grp seg" id="viewSeg" title="What the canvas shows (1, 2, 3)">
-      <button data-view="back">Back plate</button><button data-view="front">Front mask</button><button data-view="combined">Combined</button>
+      <button data-view="back" title="Back plate: the art behind the video (1)">Back plate</button><button data-view="front" title="Front mask: the art over the video (2)">Front mask</button><button data-view="combined" title="Both, with test sources in the boxes (3)">Combined</button>
     </div>
     <div class="grp">
-      <button id="openBtn" title="Open project JSON (Ctrl+O)">Open</button>
-      <button id="saveBtn" title="Save project JSON (Ctrl+S)">Save</button>
-      <button id="exportMenuBtn">Export ▾</button>
-      <button id="packBtn" class="primary" title="Export Pack ZIP (Ctrl+E)">Export Pack</button>
-    </div>
-    <div class="grp">
-      <select id="bgMode" title="Work area background">
-        <option value="checker">Checkerboard</option>
-        <option value="dark">Dark</option>
-        <option value="black">Black</option>
-        <option value="sample">Sample frame</option>
-        <option value="camera">Live camera</option>
-      </select>
-      <button id="loadSample" title="Load a still frame or image to judge the design against">Load frame…</button>
-      <label class="f inline" title="Show the sample frame or camera inside the slots instead of test cards"><input type="checkbox" id="sampleInSlots">in slots</label>
-      <label class="f inline" title="Show test sources in the slots (Combined view)"><input type="checkbox" id="showSources" checked>sources</label>
-    </div>
-    <div class="grp">
-      <label class="f inline" title="Snap to pixel grid and guides"><input type="checkbox" id="snapOn" checked>Snap</label>
-      <select id="gridSize" title="Snap grid in pixels"><option value="1">1 px</option><option value="2">2 px</option><option value="4">4 px</option><option value="8">8 px</option><option value="10">10 px</option><option value="16">16 px</option><option value="20">20 px</option><option value="40">40 px</option></select>
-      <label class="f inline"><input type="checkbox" id="showGrid">Grid</label>
-      <label class="f inline"><input type="checkbox" id="showGuides" checked>Guides</label>
-      <select id="safeMode" title="Safe area overlay"><option value="off">Safe: off</option><option value="modern">Safe 93/90 %</option><option value="legacy">Safe 90/80 %</option></select>
+      <button id="lockArBtn" class="tog" data-lockar aria-pressed="true"><svg class="lk-on" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V8a4 4 0 018 0v3"/></svg><svg class="lk-off" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V8a4 4 0 017.5-2"/></svg><span class="lt">Ratio locked</span></button>
+      <label class="f inline" title="Snap to whole pixels, the canvas centre and edges, and other boxes"><input type="checkbox" id="snapOn" checked>Snap</label>
+      <button id="viewMenuBtn" title="Background, sample frame, grid, guides and safe areas">View ▾</button>
     </div>
     <div class="grp">
       <button id="undoBtn" title="Undo (Ctrl+Z)">Undo</button><button id="redoBtn" title="Redo (Ctrl+Shift+Z)">Redo</button>
+    </div>
+    <span class="spacer"></span>
+    <div class="grp">
+      <button id="openBtn" title="Open project JSON (Ctrl+O)">Open</button>
+      <button id="saveBtn" title="Save project JSON (Ctrl+S)">Save</button>
+      <button id="exportMenuBtn" title="Export single PNGs or text">Export ▾</button>
+      <button id="packBtn" class="primary" title="Back plate, front mask, preview, project and vMix setup in one ZIP (Ctrl+E)">Export Pack</button>
     </div>
   </header>
 
@@ -179,8 +194,7 @@ dialog .db{padding:14px;max-height:75vh;overflow:auto}
     <button data-tool="ellipse" title="Ellipse / circle slot (E)"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="9" ry="7"/></svg></button>
     <button data-tool="rect" title="Rectangle (M)"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12"/></svg></button>
     <button data-tool="line" title="Line / divider bar (L)"><svg viewBox="0 0 24 24"><path d="M3 12h18" stroke-width="3" stroke-linecap="round"/></svg></button>
-    <hr>
-    <button id="tplBtn" title="Layout templates (T)"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="8" height="7" rx="1"/><rect x="13" y="4" width="8" height="7" rx="1"/><rect x="3" y="13" width="8" height="7" rx="1"/><rect x="13" y="13" width="8" height="7" rx="1"/></svg></button>
+    <div id="alignGrp" class="hidden">
     <hr>
     <button data-align="left" title="Align left"><svg viewBox="0 0 24 24"><path d="M4 3v18M8 7h10v4H8zM8 14h6v4H8z"/></svg></button>
     <button data-align="hcenter" title="Align horizontal centres"><svg viewBox="0 0 24 24"><path d="M12 3v18M6 7h12v4H6zM8 14h8v4H8z"/></svg></button>
@@ -190,6 +204,7 @@ dialog .db{padding:14px;max-height:75vh;overflow:auto}
     <button data-align="bottom" title="Align bottom"><svg viewBox="0 0 24 24"><path d="M3 20h18M7 6h4v10H7zM14 10h4v6h-4z"/></svg></button>
     <button data-align="disth" title="Distribute horizontally (equal gaps)"><svg viewBox="0 0 24 24"><path d="M3 4v16M21 4v16M8 8h3v8H8zM13 8h3v8h-3z"/></svg></button>
     <button data-align="distv" title="Distribute vertically (equal gaps)"><svg viewBox="0 0 24 24"><path d="M4 3h16M4 21h16M8 8h8v3H8zM8 13h8v3H8z"/></svg></button>
+    </div>
     <hr>
     <button id="dupBtn" title="Duplicate (Ctrl+D)"><svg viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="1.5"/><path d="M16 8V5.5A1.5 1.5 0 0014.5 4h-9A1.5 1.5 0 004 5.5v9A1.5 1.5 0 005.5 16H8"/></svg></button>
     <button id="delBtn" title="Delete (Del)"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg></button>
@@ -230,6 +245,24 @@ dialog .db{padding:14px;max-height:75vh;overflow:auto}
   <div class="mnote">PNGs are exact canvas size, straight alpha.</div>
 </div>
 
+<div class="menu pop" id="viewMenu">
+  <div class="mh">Work area</div>
+  <div class="mrow"><label for="bgMode">Background</label><select id="bgMode">
+    <option value="checker">Checkerboard</option>
+    <option value="dark">Dark</option>
+    <option value="black">Black</option>
+    <option value="sample">Sample frame</option>
+    <option value="camera">Live camera</option>
+  </select></div>
+  <div class="mrow"><span></span><button id="loadSample" title="Load a still frame or image to judge the design against">Load frame…</button></div>
+  <label class="mchk"><input type="checkbox" id="showSources" checked>Test sources in the boxes (Combined view)</label>
+  <label class="mchk"><input type="checkbox" id="sampleInSlots">Use the sample frame or camera as the source</label>
+  <div class="mh">Guides</div>
+  <div class="mrow"><label for="gridSize">Snap grid</label><select id="gridSize"><option value="1">1 px</option><option value="2">2 px</option><option value="4">4 px</option><option value="8">8 px</option><option value="10">10 px</option><option value="16">16 px</option><option value="20">20 px</option><option value="40">40 px</option></select></div>
+  <label class="mchk"><input type="checkbox" id="showGrid">Show grid (G)</label>
+  <label class="mchk"><input type="checkbox" id="showGuides" checked>Show snap guides</label>
+  <div class="mrow"><label for="safeMode">Safe area</label><select id="safeMode"><option value="off">Off</option><option value="modern">93 / 90 %</option><option value="legacy">90 / 80 %</option></select></div>
+</div>
 <dialog id="tplDlg"><div class="dh"><span>Layout presets</span><button data-close>Close</button></div><div class="db"><p class="note">Presets fit whatever canvas size is set at the top. Loading one replaces the current objects (undo brings them back). Everything stays editable.</p><div class="tgrid" id="tplGrid"></div></div></dialog>
 <dialog id="helpDlg"><div class="dh"><span>Keyboard shortcuts</span><button data-close>Close</button></div><div class="db"><div class="keys" id="keyList"></div></div></dialog>
 <input type="file" id="fileOpen" accept=".json,application/json" class="hidden">
@@ -1038,7 +1071,7 @@ var doc = PIPE.newDoc(1920, 1080);
 var sel = [];               // selected object ids
 var tool = 'select';
 var tab = 'object';
-var ui = { view: 'combined', bg: 'checker', snap: true, grid: 1, showGrid: false, guides: true, safe: 'off', sources: true, sampleInSlots: false };
+var ui = { view: 'combined', bg: 'checker', snap: true, grid: 1, showGrid: false, guides: true, safe: 'off', sources: true, sampleInSlots: false, lockAspect: true, secs: {} };
 var session = { pass: '' };  // never saved
 var sampleImg = null, camStream = null;
 var linkRadii = true;
@@ -1495,7 +1528,11 @@ cvs.addEventListener('pointermove', function (e) {
   if (drag.kind === 'create') {
     var x1 = snapVal(p.x), y1 = snapVal(p.y), dx = x1 - drag.x0, dy = y1 - drag.y0;
     if (!drag.obj && Math.abs(dx) * view.zoom < 3 && Math.abs(dy) * view.zoom < 3) return;
-    if (e.shiftKey && drag.type !== 'line') { var m = Math.max(Math.abs(dx), Math.abs(dy)); dx = (dx < 0 ? -m : m); dy = (dy < 0 ? -m : m); }
+    var dar = drawAspect(drag.type, e);
+    if (dar) { // keep the box's shape: the larger drag axis wins
+      if (Math.abs(dx) / dar >= Math.abs(dy)) dy = (dy < 0 ? -1 : 1) * Math.abs(dx) / dar; else dx = (dx < 0 ? -1 : 1) * Math.abs(dy) * dar;
+      if (ui.snap) { dx = Math.round(dx); dy = (dy < 0 ? -1 : 1) * Math.round(Math.abs(dx) / dar); }
+    }
     var rx = dx < 0 ? drag.x0 + dx : drag.x0, ry = dy < 0 ? drag.y0 + dy : drag.y0, rw = Math.max(1, Math.abs(dx)), rh = Math.max(1, Math.abs(dy));
     if (!drag.obj) { drag.obj = createObject(drag.type, rx, ry, rw, rh); doc.objects.push(drag.obj); sel = [drag.obj.id]; selectionChanged(); }
     var ob = drag.obj; ob.x = rx; ob.y = ry; ob.w = rw; ob.h = rh;
@@ -1536,18 +1573,24 @@ cvs.addEventListener('pointermove', function (e) {
     if (h.indexOf('e') >= 0) Rr = Math.max(px, L + 1);
     if (h.indexOf('n') >= 0) T2 = Math.min(py, B - 1);
     if (h.indexOf('s') >= 0) B = Math.max(py, T2 + 1);
-    var nw = Rr - L, nh = B - T2;
-    if (e.shiftKey && h.length === 2) { // keep aspect on corner drags
-      var ar = st.w / st.h;
-      if (nw / nh > ar) nw = nh * ar; else nh = nw / ar;
-      if (h.indexOf('w') >= 0) L = Rr - nw; else Rr = L + nw;
-      if (h.indexOf('n') >= 0) T2 = B - nh; else B = T2 + nh;
-    }
+    var cx = st.x + st.w / 2, cy = st.y + st.h / 2;
     if (e.altKey) { // resize from centre
-      var cx = st.x + st.w / 2, cy = st.y + st.h / 2;
       var hw = Math.max(Math.abs(Rr - cx), Math.abs(L - cx)), hh = Math.max(Math.abs(B - cy), Math.abs(T2 - cy));
       if (h === 'n' || h === 's') hw = st.w / 2; if (h === 'e' || h === 'w') hh = st.h / 2;
       L = cx - hw; Rr = cx + hw; T2 = cy - hh; B = cy + hh;
+    }
+    if (aspectLocked(e, o2)) { // keep proportions: corners fit inside the pointer, edges scale the other side about its centre
+      var ar = lockRatio(o2, st.w, st.h), nw = Rr - L, nh = B - T2, byH = h === 'n' || h === 's';
+      if (h.length === 2) { byH = nw / nh > ar; if (byH) nw = nh * ar; else nh = nw / ar; }
+      else if (byH) nw = nh * ar; else nh = nw / ar;
+      if (ui.snap) { if (byH) { nh = Math.max(1, Math.round(nh)); nw = Math.max(1, Math.round(nh * ar)); } else { nw = Math.max(1, Math.round(nw)); nh = Math.max(1, Math.round(nw / ar)); } }
+      if (e.altKey) { L = cx - nw / 2; T2 = cy - nh / 2; }
+      else {
+        L = h.indexOf('w') >= 0 ? st.x + st.w - nw : h.indexOf('e') >= 0 ? st.x : cx - nw / 2;
+        T2 = h.indexOf('n') >= 0 ? st.y + st.h - nh : h.indexOf('s') >= 0 ? st.y : cy - nh / 2;
+      }
+      if (ui.snap) { L = Math.round(L); T2 = Math.round(T2); }
+      Rr = L + nw; B = T2 + nh;
     }
     o2.x = L; o2.y = T2; o2.w = Rr - L; o2.h = B - T2;
     drag.moved = true;
@@ -1585,6 +1628,23 @@ cvs.addEventListener('wheel', function (e) {
 
 // ---------------- object ops ----------------
 function nextSlotNum() { var m = 0; doc.objects.forEach(function (o) { if (o.slot) m = Math.max(m, o.slotNum || 0); }); return m + 1; }
+// Proportion lock (on by default). Shift flips it for the current drag. Lines never lock.
+function aspectLocked(e, o) { return (ui.lockAspect !== false) !== !!(e && e.shiftKey) && (!o || o.type !== 'line'); }
+// Ratio to hold while locked: a slot within 1 % of its source shape snaps to the exact source ratio, so 16:9 boxes don't drift after rounding.
+function lockRatio(o, w, h) {
+  var r = w / h, sa = o.slot ? PIPE.aspectOf(o.src) : 0;
+  return sa && Math.abs(r / sa - 1) < 0.01 ? sa : r;
+}
+function drawAspect(type, e) {
+  if (type === 'line') return 0;
+  if (type === 'rrect' || type === 'squircle') return aspectLocked(e) ? 16 / 9 : 0;
+  return e.shiftKey ? 1 : 0; // ellipse / rectangle: Shift draws a circle or square
+}
+function setLockAspect(on) {
+  ui.lockAspect = !!on; saveUi();
+  $$('[data-lockar]').forEach(function (b) { b.classList.toggle('on', ui.lockAspect); b.setAttribute('aria-pressed', ui.lockAspect); b.title = ui.lockAspect ? 'Proportions locked: resizing keeps the shape (hold Shift to break it for one drag). Click to unlock.' : 'Proportions unlocked: width and height change freely. Click to lock.'; });
+  $$('[data-lockar] .lt').forEach(function (t) { t.textContent = ui.lockAspect ? 'Ratio locked' : 'Ratio unlocked'; });
+}
 function createObject(type, x, y, w, h) {
   var t = type === 'squircle' ? 'rrect' : type;
   var o = PIPE.newObject(t, x, y, w, h);
@@ -1691,6 +1751,7 @@ document.addEventListener('keydown', function (e) {
   if (map[k.toLowerCase()]) { setTool(map[k.toLowerCase()]); return; }
   if (k === '1' || k === '2' || k === '3') { setView(['back', 'front', 'combined'][+k - 1]); return; }
   if (k === 't' || k === 'T') { openTemplates(); return; }
+  if (k === 'k' || k === 'K') { setLockAspect(!ui.lockAspect); toast(ui.lockAspect ? 'Proportions locked' : 'Proportions unlocked'); return; }
   if (k === 'g' || k === 'G') { ui.showGrid = !ui.showGrid; $('#showGrid').checked = ui.showGrid; saveUi(); draw(); return; }
   if (k === '?') { openHelp(); return; }
 });
@@ -1700,7 +1761,7 @@ var SHORTCUTS = [
   ['Arrows', 'Nudge 1 px'], ['Shift + Arrows', 'Nudge 10 px'], ['Ctrl+D', 'Duplicate'], ['Alt + drag', 'Duplicate while moving'], ['Del / Backspace', 'Delete'],
   ['Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y', 'Undo / redo'], ['Ctrl+A', 'Select all'], ['Shift + click', 'Add to selection'],
   ['Ctrl+] / Ctrl+[', 'Bring forward / send backward (add Shift: to front / back)'], ['Ctrl+L / Ctrl+H', 'Lock / hide'],
-  ['Shift + drag corner', 'Keep aspect ratio'], ['Alt + drag handle', 'Resize from centre'], ['Shift + drag', 'Constrain move to one axis'],
+  ['K', 'Lock / unlock box proportions'], ['Shift + resize', 'Break (or keep) proportions for one drag'], ['Alt + drag handle', 'Resize from centre'], ['Shift + drag', 'Constrain move to one axis'],
   ['1  2  3', 'View back plate / front mask / combined'], ['G', 'Toggle grid'], ['T', 'Templates'],
   ['Ctrl+0 / Ctrl+1', 'Fit / 100%'], ['Ctrl+ +/-, wheel', 'Zoom'], ['Ctrl+S / Ctrl+O', 'Save / open project'], ['Ctrl+E', 'Export Pack'], ['Esc', 'Deselect']
 ];
@@ -1736,6 +1797,11 @@ function fSel(label, path, opts, o) {
 function fTxt(label, path, o) { o = o || {}; return '<div class="f"' + (o.span ? ' style="grid-column:span ' + o.span + '"' : '') + '><label>' + label + '</label><input type="' + (o.type || 'text') + '"' + attrs(path, o) + (o.ph ? ' placeholder="' + esc(o.ph) + '"' : '') + ' spellcheck="false"></div>'; }
 function fColor(label, path, o) { return '<div class="f"><label>' + label + '</label><div class="colorf"><input type="color"' + attrs(path, o) + '><input type="text"' + attrs(path, o) + ' maxlength="7" spellcheck="false"></div></div>'; }
 function sec(title, body, right) { return '<div class="sec"><div class="sh">' + title + (right ? '<span class="r">' + right + '</span>' : '') + '</div><div class="sb">' + body + '</div></div>'; }
+// Collapsible section; open/closed is remembered per id. defOpen applies until the user toggles it.
+function csec(id, title, body, defOpen, summary) {
+  var open = ui.secs && id in ui.secs ? ui.secs[id] : defOpen;
+  return '<details class="sec" data-sec="' + id + '"' + (open ? ' open' : '') + '><summary class="sh">' + title + (summary ? '<span class="sum">' + summary + '</span>' : '') + '</summary><div class="sb">' + body + '</div></details>';
+}
 function row(cls, inner) { return '<div class="row ' + (cls || '') + '">' + inner + '</div>'; }
 function btn(label, act, extra) { return '<button data-act="' + act + '"' + (extra || '') + '>' + label + '</button>'; }
 
@@ -1767,6 +1833,7 @@ function readField(el) {
   if (el.type === 'text' && el.maxLength === 7) { var c = el.value.trim(); if (c[0] !== '#') c = '#' + c; return /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(c) ? (c.length === 4 ? '#' + c[1] + c[1] + c[2] + c[2] + c[3] + c[3] : c).toLowerCase() : undefined; }
   return el.value;
 }
+var arMemo = {}; // proportions captured at the first keystroke of a W/H edit
 function applyField(el, live) {
   var v = readField(el); if (v === undefined) return;
   var path = el.dataset.b;
@@ -1775,6 +1842,12 @@ function applyField(el, live) {
     var so = selObjs(); if (!so.length) return;
     so.forEach(function (o) {
       if (el.dataset.special === 'radius' && linkRadii) { o.radii = [v, v, v, v]; return; }
+      if ((path === 'w' || path === 'h') && aspectLocked(null, o) && o.w > 0 && o.h > 0) { // keep proportions from the size before this edit
+        var ar = arMemo[o.id] || (arMemo[o.id] = lockRatio(o, o.w, o.h));
+        if (path === 'w') { o.w = v; o.h = Math.max(1, ui.snap ? Math.round(v / ar) : v / ar); } else { o.h = v; o.w = Math.max(1, ui.snap ? Math.round(v * ar) : v * ar); }
+        if (!live) delete arMemo[o.id];
+        return;
+      }
       setPath(o, path, v);
     });
   }
@@ -1791,6 +1864,7 @@ function applyField(el, live) {
   }
 }
 var tb = $('#tabBody');
+tb.addEventListener('click', function (e) { var sm = e.target.closest('summary'), d = sm && sm.parentElement; if (d && d.dataset.sec) { ui.secs[d.dataset.sec] = !d.open; saveUi(); } });
 tb.addEventListener('input', function (e) { var el = e.target; if (!el.dataset.b || el.type === 'checkbox' || el.tagName === 'SELECT') return; applyField(el, true); });
 tb.addEventListener('change', function (e) { var el = e.target; if (!el.dataset.b) return; applyField(el, false); });
 tb.addEventListener('click', function (e) {
@@ -1848,6 +1922,7 @@ function selectionChanged(light) {
   var key = sel.join(',');
   if (key !== lastSelKey) { lastSelKey = key; buildTab(); }
   $$('#objList .orow').forEach(function (r) { r.classList.toggle('sel', sel.indexOf(r.dataset.id) >= 0); });
+  $('#alignGrp').classList.toggle('hidden', !sel.length);
   updateSelStatus();
   if (!light) draw();
 }
@@ -1871,24 +1946,26 @@ function buildTab() {
   syncFields();
   refreshComputed();
 }
-function noSel(msg) { return '<p class="note">' + (msg || 'Select an object on the canvas or in the list.') + '</p>' + '<p class="note">Draw with the tools on the left, or press <b>T</b> for a layout template.</p>'; }
+function noSel(msg) { return '<p class="note">' + (msg || 'Click a box on the canvas, or in the list above, to edit it.') + '</p>' + '<p class="note">Start from <b>Layouts…</b> in the top bar (T), or draw a box with the tools on the left.</p>'; }
+var LOCK_SVG = '<svg class="lk-on" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V8a4 4 0 018 0v3"/></svg><svg class="lk-off" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V8a4 4 0 017.5-2"/></svg>';
+function lockArBtn() { return '<div class="f"><label>&nbsp;</label><button class="tog' + (ui.lockAspect ? ' on' : '') + '" data-lockar data-act="lockAr" aria-pressed="' + !!ui.lockAspect + '">' + LOCK_SVG + '<span class="lt"></span></button></div>'; }
 
 function tabObject() {
   var o = firstSel(); if (!o) return noSel();
-  var multi = sel.length > 1, h = '';
-  h += sec('Identity', row('c2', fTxt('Name', 'name') + (o.slot ? fNum('Slot number', 'slotNum', { min: 0, max: 99 }) : fSel('Plane', 'plane', [['back', 'Back plate (behind video)'], ['front', 'Front mask (over video)']], { rebuild: 1 }))) +
-    row('c2', fChk('Video slot', 'slot', { rebuild: 1, title: 'A slot is where a vMix source sits. It gets a layer and vMix values.' }) + '<span class="note">' + (o.slot ? 'Source sits here (vMix layer ' + PIPE.layerOf(doc, o) + ')' : 'Decoration only') + '</span>') +
-    row('c2', fChk('Locked', 'locked', { rebuild: 1 }) + fChk('Hidden', 'hidden')));
-  h += sec('Position and size (canvas px)', row('', fNum('X', 'x', { step: 1 }) + fNum('Y', 'y', { step: 1 }) + fNum('W', 'w', { step: 1, min: 1 }) + fNum('H', 'h', { step: 1, min: 1 })) +
-    row('c3', btn('Centre H', 'centerH') + btn('Centre V', 'centerV') + btn('Match 16:9', 'match169')) +
-    '<div class="note">Right / bottom edge: <span id="edgeInfo"></span></div>');
-  if (o.type === 'rrect' && !multi || o.type === 'rrect') {
+  var multi = sel.length > 1, h = '', asp = o.src.aspect === 'custom' ? 'source' : o.src.aspect;
+  h += sec(multi ? sel.length + ' objects selected' : o.slot ? 'Video slot' : 'Decoration',
+    row('c2', fTxt('Name', 'name') + (o.slot ? fNum('Slot number', 'slotNum', { min: 0, max: 99 }) : fSel('Drawn on', 'plane', [['back', 'Back plate (behind video)'], ['front', 'Front mask (over video)']], { rebuild: 1 }))) +
+    fChk('A vMix source sits here' + (o.slot ? ' (layer ' + PIPE.layerOf(doc, o) + ')' : ''), 'slot', { rebuild: 1, title: 'Untick for a decoration: a shape that gets no vMix layer.' }));
+  h += sec('Size and position', row('sizerow', fNum('Width', 'w', { step: 1, min: 1 }) + lockArBtn() + fNum('Height', 'h', { step: 1, min: 1 })) +
+    row('c2', fNum('X (left)', 'x', { step: 1 }) + fNum('Y (top)', 'y', { step: 1 })) +
+    row('c3', btn('Centre H', 'centerH') + btn('Centre V', 'centerV') + btn('Match ' + esc(asp), 'match169', ' title="Set the height so the box matches its source shape"')) +
+    '<div class="note">' + (ui.lockAspect ? 'Ratio locked: resizing keeps the shape. Hold Shift while dragging to break it once.' : 'Ratio unlocked: width and height change freely.') + ' Right / bottom edge: <span id="edgeInfo"></span></div>');
+  if (o.type === 'rrect') {
     h += sec('Corners', row('', fNum('Top L', 'radii.0', { min: 0, special: 'radius' }) + fNum('Top R', 'radii.1', { min: 0, special: 'radius' }) + fNum('Bot R', 'radii.2', { min: 0, special: 'radius' }) + fNum('Bot L', 'radii.3', { min: 0, special: 'radius' })) +
       row('c3', '<label class="f inline"><input type="checkbox" id="linkR"' + (linkRadii ? ' checked' : '') + '>Link corners</label>' + fSel('Corner shape', 'cornerStyle', [['round', 'Circular'], ['squircle', 'Squircle']], { rebuild: 1 }) + (o.cornerStyle === 'squircle' ? fNum('Smoothness', 'smooth', { min: 2, max: 12, step: 0.5, title: '2 = circular, 4-5 = squircle, higher = squarer' }) : '')));
   }
-  if (o.type === 'line') h += sec('Line', row('c2', fSel('Ends', 'caps', [['butt', 'Square'], ['round', 'Round']])) + '<div class="note">Thickness is the shorter of W and H.</div>');
+  if (o.type === 'line') h += sec('Line', row('c2', fSel('Ends', 'caps', [['butt', 'Square'], ['round', 'Round']])) + '<div class="note">Thickness is the shorter of width and height.</div>');
   if (o.type === 'ellipse') h += sec('Ellipse', btn('Make circle (W = H)', 'circle'));
-  h += sec('Arrange', row('c3', btn('To front', 'toFront') + btn('Forward', 'fwd') + btn('Backward', 'bwd')) + row('c3', btn('To back', 'toBack') + btn('Duplicate', 'dup') + btn('Delete', 'del')));
   return h;
 }
 
@@ -1915,9 +1992,9 @@ function shadowItem(kind, sh, i) {
 function tabStyle() {
   var o = firstSel(); if (!o) return noSel();
   var st = o.style, h = '', pres = allPresets();
-  h += sec('Style presets', row('c2', '<div class="f"><label>Preset</label><select id="presetSel">' + pres.map(function (p, i) { return '<option value="' + i + '"' + (i === presetPick ? ' selected' : '') + '>' + esc(p.name) + (p.builtin ? '' : ' ★') + '</option>'; }).join('') + '</select></div>' + '<div class="f"><label>&nbsp;</label>' + btn('Apply to selection', 'presetApply') + '</div>') +
-    row('c3', btn('Save current…', 'presetSave') + btn('Delete', 'presetDel') + btn('Export…', 'presetExport')) + row('c3', btn('Import…', 'presetImport')) +
-    '<div class="note">★ = yours. Saved in this browser; Export to move them between machines. Presets also carry corner radii.</div>');
+  h += csec('stPresets', 'Style presets', row('c2', '<div class="f"><label>Preset</label><select id="presetSel">' + pres.map(function (p, i) { return '<option value="' + i + '"' + (i === presetPick ? ' selected' : '') + '>' + esc(p.name) + (p.builtin ? '' : ' ★') + '</option>'; }).join('') + '</select></div>' + '<div class="f"><label>&nbsp;</label>' + btn('Apply to selection', 'presetApply') + '</div>') +
+    row('', btn('Save…', 'presetSave', ' title="Save this object\'s look as a new preset"') + btn('Delete', 'presetDel') + btn('Export…', 'presetExport') + btn('Import…', 'presetImport')) +
+    '<div class="note">★ = yours. Saved in this browser; Export to move them between machines. Presets also carry corner radii.</div>', true);
   var f = st.fill;
   var fillBody = row('c2', fChk('Fill on', 'style.fill.enabled') + fSel('Type', 'style.fill.type', [['solid', 'Solid'], ['linear', 'Linear gradient'], ['radial', 'Radial gradient']], { rebuild: 1 }));
   if (f.type === 'solid' || !f.type) fillBody += row('c2', fColor('Colour', 'style.fill.color') + fNum('Opacity %', 'style.fill.alpha', { k: 100, min: 0, max: 100 }));
@@ -1930,33 +2007,34 @@ function tabStyle() {
     });
     fillBody += btn('+ Add stop', 'addStop');
   }
-  h += sec('Fill', fillBody);
-  h += sec('Stroke', row('c2', fChk('Stroke on', 'style.stroke.enabled') + fSel('Align', 'style.stroke.align', [['inside', 'Inside'], ['center', 'Centre'], ['outside', 'Outside']])) +
+  h += csec('stFill', 'Fill', fillBody, true, f.enabled ? '' : 'off');
+  h += csec('stStroke', 'Border', row('c2', fChk('Border on', 'style.stroke.enabled') + fSel('Align', 'style.stroke.align', [['inside', 'Inside'], ['center', 'Centre'], ['outside', 'Outside']])) +
     row('c3', fNum('Width', 'style.stroke.width', { min: 0, step: 0.5 }) + fColor('Colour', 'style.stroke.color') + fNum('Opacity %', 'style.stroke.alpha', { k: 100, min: 0, max: 100 })) +
-    (o.slot && doc.frontMask.includeStroke ? '<div class="note">Slot borders are drawn in the front mask (over the video). Change this on the Mask tab.</div>' : ''));
-  h += sec('Drop shadows', (st.shadows || []).map(function (s, i) { return shadowItem('shadows', s, i); }).join('') +
-    row('c2', btn('+ Add shadow', 'add-shadows') + '<span class="note">Blur matches CSS box-shadow (σ = blur ÷ 2).</span>'));
-  h += sec('Inner shadows', (st.innerShadows || []).map(function (s, i) { return shadowItem('innerShadows', s, i); }).join('') + btn('+ Add inner shadow', 'add-innerShadows') +
-    (o.slot && doc.frontMask.includeInner ? '<div class="note">Slot inner shadows are drawn in the front mask, over the video.</div>' : '<div class="note">Inner shadows on a slot sit under the video unless the Mask tab moves them to the front mask.</div>'));
-  h += sec('Outer glow', row('c2', fChk('Glow on', 'style.glow.enabled') + fColor('Colour', 'style.glow.color')) + row('c3', fNum('Blur', 'style.glow.blur', { min: 0 }) + fNum('Spread', 'style.glow.spread') + fNum('Opacity %', 'style.glow.opacity', { k: 100, min: 0, max: 100 })));
-  h += sec('Edges and vMix behaviour', row('c2', fNum('Soft edge feather px', 'style.feather', { min: 0, step: 0.5 }) + '<span></span>') +
+    (o.slot && doc.frontMask.includeStroke ? '<div class="note">Slot borders are drawn in the front mask (over the video). Change this on the Mask tab.</div>' : ''), true, st.stroke.enabled ? fmt(st.stroke.width) + ' px' : 'off');
+  h += csec('stShadows', 'Drop shadows', (st.shadows || []).map(function (s, i) { return shadowItem('shadows', s, i); }).join('') +
+    row('c2', btn('+ Add shadow', 'add-shadows') + '<span class="note">Blur matches CSS box-shadow (σ = blur ÷ 2).</span>'), true, (st.shadows || []).length ? st.shadows.length + '' : 'none');
+  var nIn = (st.innerShadows || []).length;
+  h += csec('stInner', 'Inner shadows', (st.innerShadows || []).map(function (s, i) { return shadowItem('innerShadows', s, i); }).join('') + btn('+ Add inner shadow', 'add-innerShadows') +
+    (o.slot && doc.frontMask.includeInner ? '<div class="note">Slot inner shadows are drawn in the front mask, over the video.</div>' : '<div class="note">Inner shadows on a slot sit under the video unless the Mask tab moves them to the front mask.</div>'), nIn > 0, nIn ? nIn + '' : 'none');
+  h += csec('stGlow', 'Outer glow', row('c2', fChk('Glow on', 'style.glow.enabled') + fColor('Colour', 'style.glow.color')) + row('c3', fNum('Blur', 'style.glow.blur', { min: 0 }) + fNum('Spread', 'style.glow.spread') + fNum('Opacity %', 'style.glow.opacity', { k: 100, min: 0, max: 100 })), !!st.glow.enabled, st.glow.enabled ? '' : 'off');
+  h += csec('stEdges', 'Knockout, shadow only, feather', row('c2', fNum('Soft edge feather px', 'style.feather', { min: 0, step: 0.5 }) + '<span></span>') +
     row('c2', fChk('Knockout', 'style.knockout', { title: 'Clear the fill and everything beneath inside the shape, so the source shows through cleanly.' }) + fChk('Shadow only', 'style.shadowOnly', { title: 'Draw only shadows and glow. No fill or border.' })) +
-    '<div class="note">Knockout cuts a clean hole in the back plate where the source sits. Shadow only keeps just the shadows and glow.</div>');
-  h += sec('Paste CSS box-shadow', '<textarea id="cssShadow" rows="2" placeholder="0 16px 48px rgba(0,0,0,.55), inset 0 2px 6px #0008" spellcheck="false"></textarea>' + row('c2', btn('Apply to selection', 'cssApply') + btn('Copy as CSS', 'cssCopy')));
+    '<div class="note">Knockout cuts a clean hole in the back plate where the source sits. Shadow only keeps just the shadows and glow.</div>', false, [st.knockout ? 'knockout' : '', st.shadowOnly ? 'shadow only' : '', st.feather ? 'feather ' + fmt(st.feather) : ''].filter(Boolean).join(', '));
+  h += csec('stCss', 'CSS box-shadow', '<textarea id="cssShadow" rows="2" placeholder="0 16px 48px rgba(0,0,0,.55), inset 0 2px 6px #0008" spellcheck="false"></textarea>' + row('c2', btn('Apply to selection', 'cssApply') + btn('Copy as CSS', 'cssCopy')), false, 'paste or copy');
   return h;
 }
 
 function tabVmix() {
   var v = doc.vmix, o = firstSel(), h = '';
-  h += sec('Connection', row('c2', fTxt('vMix host', 'vmix.host', { doc: 1 }) + fNum('Port', 'vmix.port', { doc: 1, min: 1, max: 65535 })) +
+  var conn = csec('vmConn', 'vMix connection', row('c2', fTxt('vMix host', 'vmix.host', { doc: 1 }) + fNum('Port', 'vmix.port', { doc: 1, min: 1, max: 65535 })) +
     row('c2', fTxt('Back plate input (name / number)', 'vmix.input', { doc: 1 }) + fTxt('Front mask input', 'vmix.maskInput', { doc: 1 })) +
     row('c2', fNum('Front mask layer (0 = auto)', 'vmix.maskLayer', { doc: 1, min: 0, max: 10 }) + fSel('Position method', 'vmix.method', [['zoompan', 'Zoom + Pan + Crop'], ['rectangle', 'Rectangle (px) + Crop']], { doc: 1 })) +
     row('c3', fNum('Output W', 'vmix.outW', { doc: 1, min: 16, max: 8192 }) + fNum('Output H', 'vmix.outH', { doc: 1, min: 16, max: 8192 }) + '<div class="f"><label>&nbsp;</label>' + btn('= canvas', 'outMatch') + '</div>') +
     '<div class="note">Output size = vMix Settings &gt; Display preset resolution. Pixel values (Rectangle) use it; zoom and pan do not depend on it.</div>' +
     row('c2', fSel('Send via', 'vmix.sendMode', [['direct', 'Direct (fire and forget)'], ['relay', 'Relay helper (confirmed)']], { doc: 1, rebuild: 1 }) + (v.sendMode === 'relay' ? fTxt('Relay URL', 'vmix.relay', { doc: 1 }) : '<span></span>')) +
-    (v.sendMode === 'relay' ? row('c2', fTxt('Web Controller user', 'vmix.user', { doc: 1, ph: 'only if a password is set' }) + '<div class="f"><label>Password (not saved)</label><input type="password" id="vmPass" value="' + esc(session.pass) + '"></div>') + row('c3', btn('Test relay', 'relayPing') + btn('Read back', 'verify') + '<span></span>') : '<div class="note">Direct sends from this page cannot see vMix\'s reply (no CORS headers), and Chrome may block LAN addresses. Use the relay helper for confirmation, read back and password support.</div>'));
-  h += '<div id="vmSrc">' + (o && o.slot && sel.length === 1 ? sourceSection(o) : '') + '</div><div id="vmComputed"></div>';
-  h += '<div id="verifyOut"></div>';
+    (v.sendMode === 'relay' ? row('c2', fTxt('Web Controller user', 'vmix.user', { doc: 1, ph: 'only if a password is set' }) + '<div class="f"><label>Password (not saved)</label><input type="password" id="vmPass" value="' + esc(session.pass) + '"></div>') + row('c3', btn('Test relay', 'relayPing') + btn('Read back', 'verify') + '<span></span>') : '<div class="note">Direct sends from this page cannot see vMix\'s reply (no CORS headers), and Chrome may block LAN addresses. Use the relay helper for confirmation, read back and password support.</div>'), false, esc(v.host + ':' + v.port) + ' · ' + (v.sendMode === 'relay' ? 'relay' : 'direct'));
+  h += '<div id="vmSrc">' + (o && o.slot && sel.length === 1 ? sourceSection(o) : !o ? '<p class="note">Click a video slot to set its source and see its vMix values.</p>' : '') + '</div><div id="vmComputed"></div>';
+  h += conn + '<div id="verifyOut"></div>';
   return h;
 }
 function sourceSection(o) {
@@ -2008,9 +2086,9 @@ function tabMask() {
     '<div class="note">' + (fm.surround === 'backplate' ? 'Copies the back plate into the video area outside each slot window, so the video corners take the back plate\'s look. Only covers pixels the video occupies, so nothing is doubled.' : fm.surround === 'color' ? 'A solid colour outside the windows. "Whole canvas" makes the mask a full frame graphic with holes.' : 'No surround: the mask carries only borders, inner shadows and highlights. Video corners stay square.') + '</div>');
   h += sec('Drawn over the video', fChk('Slot borders in the front mask', 'frontMask.includeStroke', { doc: 1, rebuild: 1 }) + fChk('Slot inner shadows in the front mask', 'frontMask.includeInner', { doc: 1, rebuild: 1 }) +
     '<div class="note">When on, these are left out of the back plate so nothing doubles up.</div>');
-  h += sec('Inner edge highlight', row('c2', fChk('On', 'frontMask.highlight.enabled', { doc: 1 }) + fColor('Colour', 'frontMask.highlight.color', { doc: 1 })) +
+  h += csec('mkHi', 'Inner edge highlight', row('c2', fChk('On', 'frontMask.highlight.enabled', { doc: 1 }) + fColor('Colour', 'frontMask.highlight.color', { doc: 1 })) +
     row('c3', fNum('Width', 'frontMask.highlight.width', { doc: 1, min: 0, step: 0.5 }) + fNum('Blur', 'frontMask.highlight.blur', { doc: 1, min: 0 }) + fNum('Opacity %', 'frontMask.highlight.opacity', { doc: 1, k: 100, min: 0, max: 100 })) +
-    '<div class="note">A soft light line just inside every slot edge, over the video.</div>');
+    '<div class="note">A soft light line just inside every slot edge, over the video.</div>', !!fm.highlight.enabled, fm.highlight.enabled ? '' : 'off');
   h += sec('Checks', '<div id="warnList"></div>');
   return h;
 }
@@ -2026,15 +2104,15 @@ tb.addEventListener('click', function (e) { var w = e.target.closest('[data-wid]
 
 function tabProject() {
   var h = '';
-  h += sec('Canvas', row('c3', '<div class="f"><label>Width</label><input type="number" id="pW" min="16" max="8192" value="' + doc.canvas.w + '"></div><div class="f"><label>Height</label><input type="number" id="pH" min="16" max="8192" value="' + doc.canvas.h + '"></div><div class="f"><label>&nbsp;</label>' + btn('Apply size', 'applySize') + '</div>') +
-    '<label class="f inline"><input type="checkbox" id="pScale" checked>Scale objects and styles with the canvas (same aspect only)</label>');
   h += sec('Export', row('c2', fTxt('File name prefix', 'exportOpts.baseName', { doc: 1 }) + '<span></span>') +
     fChk('Dither (stops banding in soft shadows and gradients)', 'exportOpts.dither', { doc: 1 }) + fChk('Edge colour padding (safe if vMix scales the PNG)', 'exportOpts.edgePad', { doc: 1 }) +
     row('c2', btn('Export Pack (ZIP)', 'pack', ' class="primary"') + btn('Back plate PNG', 'expBack')) + row('c2', btn('Front mask PNG', 'expFront') + btn('Preview PNG', 'expPreview')) +
     '<div class="note">All PNGs are exactly ' + doc.canvas.w + '×' + doc.canvas.h + ' px, 8-bit straight (non-premultiplied) alpha, no gamma or colour profile chunks.</div>');
-  h += sec('Project file', row('c3', btn('New…', 'newDoc') + btn('Open…', 'open') + btn('Save', 'save')) + row('c2', btn('Templates…', 'templates') + btn('Clear autosave', 'clearAuto')) +
+  h += sec('Canvas', row('c3', '<div class="f"><label>Width</label><input type="number" id="pW" min="16" max="8192" value="' + doc.canvas.w + '"></div><div class="f"><label>Height</label><input type="number" id="pH" min="16" max="8192" value="' + doc.canvas.h + '"></div><div class="f"><label>&nbsp;</label>' + btn('Apply size', 'applySize') + '</div>') +
+    '<label class="f inline"><input type="checkbox" id="pScale" checked>Scale objects and styles with the canvas (same aspect only)</label>');
+  h += sec('Project file', row('c3', btn('New…', 'newDoc') + btn('Open…', 'open') + btn('Save', 'save')) + row('c2', btn('Layouts…', 'templates') + btn('Clear autosave', 'clearAuto')) +
     '<div class="note">Autosave keeps the current project in this browser after every change. Save the JSON for anything you need to keep.</div>');
-  h += sec('Keyboard', '<div class="keys">' + SHORTCUTS.slice(0, 8).map(function (s) { return '<kbd>' + s[0] + '</kbd><span>' + s[1] + '</span>'; }).join('') + '</div>' + btn('All shortcuts', 'help'));
+  h += csec('prKeys', 'Keyboard shortcuts', '<div class="keys">' + SHORTCUTS.slice(0, 8).map(function (s) { return '<kbd>' + s[0] + '</kbd><span>' + s[1] + '</span>'; }).join('') + '</div>' + btn('All shortcuts', 'help'), false);
   return h;
 }
 
@@ -2047,6 +2125,7 @@ function copyText(t, what) {
 function fallbackCopy(t) { var ta = document.createElement('textarea'); ta.value = t; ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select(); var r = false; try { r = document.execCommand('copy'); } catch (e) { } ta.remove(); return r; }
 function newShadow(inner) { return { enabled: true, x: 0, y: inner ? 4 : 12, blur: inner ? 12 : 40, spread: 0, color: '#000000', opacity: 0.5 }; }
 var ACTIONS = {
+  lockAr: function () { setLockAspect(!ui.lockAspect); buildTab(); },
   centerH: function () { selObjs().forEach(function (o) { o.x = (doc.canvas.w - o.w) / 2; }); syncFields(); commit(); },
   centerV: function () { selObjs().forEach(function (o) { o.y = (doc.canvas.h - o.h) / 2; }); syncFields(); commit(); },
   match169: function () { selObjs().forEach(function (o) { var a = PIPE.aspectOf(o.src); o.h = Math.round(o.w / a); }); syncFields(); commit(); },
@@ -2270,7 +2349,6 @@ function syncCanvasUi() {
   ps.value = ['1920x1080', '3840x2160', '1280x720'].indexOf(key) >= 0 ? key : 'custom';
   $('#customWH').classList.toggle('hidden', ps.value !== 'custom');
   $('#cw').value = doc.canvas.w; $('#ch').value = doc.canvas.h;
-  $('#dims').textContent = doc.canvas.w + ' × ' + doc.canvas.h + ' px';
   $('#stCanvas').textContent = doc.canvas.w + '×' + doc.canvas.h;
 }
 $('#canvasPreset').addEventListener('change', function (e) {
@@ -2380,9 +2458,18 @@ function exportPack() {
 }
 $('#exportMenuBtn').addEventListener('click', function (e) {
   var m = $('#exportMenu'), r = e.target.getBoundingClientRect();
+  $('#viewMenu').classList.remove('open');
   m.style.left = Math.min(r.left, window.innerWidth - 240) + 'px'; m.style.top = (r.bottom + 4) + 'px'; m.classList.toggle('open'); e.stopPropagation();
 });
-document.addEventListener('click', function () { $('#exportMenu').classList.remove('open'); });
+$('#viewMenuBtn').addEventListener('click', function (e) {
+  var m = $('#viewMenu'), r = e.target.getBoundingClientRect();
+  $('#exportMenu').classList.remove('open');
+  m.style.left = Math.max(4, Math.min(r.left, window.innerWidth - 310)) + 'px'; m.style.top = (r.bottom + 4) + 'px'; m.classList.toggle('open'); e.stopPropagation();
+});
+$('#viewMenu').addEventListener('click', function (e) { e.stopPropagation(); });
+document.addEventListener('click', function () { $('#exportMenu').classList.remove('open'); $('#viewMenu').classList.remove('open'); });
+document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { $('#exportMenu').classList.remove('open'); $('#viewMenu').classList.remove('open'); } });
+$('#lockArBtn').addEventListener('click', function () { setLockAspect(!ui.lockAspect); });
 $('#exportMenu').addEventListener('click', function (e) {
   var b = e.target.closest('[data-exp]'); if (!b) return;
   var k = b.dataset.exp;
@@ -2459,7 +2546,6 @@ function setTool(t) { tool = t; $$('#tools [data-tool]').forEach(function (b) { 
 function setView(v) { ui.view = v; $$('#viewSeg button').forEach(function (b) { b.classList.toggle('on', b.dataset.view === v); }); saveUi(); draw(); }
 $$('#tools [data-tool]').forEach(function (b) { b.addEventListener('click', function () { setTool(b.dataset.tool); }); });
 $$('#tools [data-align]').forEach(function (b) { b.addEventListener('click', function () { align(b.dataset.align); }); });
-$('#tplBtn').addEventListener('click', openTemplates);
 $('#layoutsBtn').addEventListener('click', openTemplates);
 $('#dupBtn').addEventListener('click', function () { duplicate(20, 20); });
 $('#delBtn').addEventListener('click', deleteSel);
@@ -2502,6 +2588,8 @@ function buildAll() { syncCanvasUi(); buildObjList(); lastSelKey = '?'; selectio
   if (ui.bg === 'sample' || ui.bg === 'camera') ui.bg = 'checker';
   $('#bgMode').value = ui.bg; $('#gridSize').value = String(ui.grid); $('#safeMode').value = ui.safe;
   ['#snapOn', '#showGrid', '#showGuides', '#showSources', '#sampleInSlots'].forEach(function (id, i) { $(id).checked = !!ui[['snap', 'showGrid', 'guides', 'sources', 'sampleInSlots'][i]]; });
+  if (!ui.secs || typeof ui.secs !== 'object') ui.secs = {};
+  setLockAspect(ui.lockAspect !== false);
   var restored = false, auto = lsGet(LS_AUTO);
   if (auto) { try { doc = PIPE.migrate(JSON.parse(auto)); restored = true; } catch (e) { } }
   if (!restored) { doc = PIPE.newDoc(1920, 1080); doc.objects = templateObjects(TEMPLATES[1]); }
@@ -2513,7 +2601,7 @@ function buildAll() { syncCanvasUi(); buildObjList(); lastSelKey = '?'; selectio
   requestRender(false);
   if (restored) toast('Restored your last session from autosave');
   // test hooks (used by the automated checks; harmless otherwise)
-  window.__pip = { testBuild: TESTBUILD, keys: { auto: LS_AUTO, presets: LS_PRESETS, ui: LS_UI }, get doc() { return doc; }, set doc(d) { doc = PIPE.migrate(d); commit(); buildAll(); }, sel: function (ids) { sel = ids; selectionChanged(); }, render: R, exportPack: exportPack, undo: undo, redo: redo, hist: hist, setCanvasSize: setCanvasSize, loadTemplate: function (i) { loadTemplate(TEMPLATES[i]); }, templates: TEMPLATES.map(function (t) { return t.name; }), view: view };
+  window.__pip = { testBuild: TESTBUILD, get ui() { return ui; }, setLockAspect: setLockAspect, keys: { auto: LS_AUTO, presets: LS_PRESETS, ui: LS_UI }, get doc() { return doc; }, set doc(d) { doc = PIPE.migrate(d); commit(); buildAll(); }, sel: function (ids) { sel = ids; selectionChanged(); }, render: R, exportPack: exportPack, undo: undo, redo: redo, hist: hist, setCanvasSize: setCanvasSize, loadTemplate: function (i) { loadTemplate(TEMPLATES[i]); }, templates: TEMPLATES.map(function (t) { return t.name; }), view: view };
 })();
 })();
 </script>

@@ -30,6 +30,11 @@ function fSel(label, path, opts, o) {
 function fTxt(label, path, o) { o = o || {}; return '<div class="f"' + (o.span ? ' style="grid-column:span ' + o.span + '"' : '') + '><label>' + label + '</label><input type="' + (o.type || 'text') + '"' + attrs(path, o) + (o.ph ? ' placeholder="' + esc(o.ph) + '"' : '') + ' spellcheck="false"></div>'; }
 function fColor(label, path, o) { return '<div class="f"><label>' + label + '</label><div class="colorf"><input type="color"' + attrs(path, o) + '><input type="text"' + attrs(path, o) + ' maxlength="7" spellcheck="false"></div></div>'; }
 function sec(title, body, right) { return '<div class="sec"><div class="sh">' + title + (right ? '<span class="r">' + right + '</span>' : '') + '</div><div class="sb">' + body + '</div></div>'; }
+// Collapsible section; open/closed is remembered per id. defOpen applies until the user toggles it.
+function csec(id, title, body, defOpen, summary) {
+  var open = ui.secs && id in ui.secs ? ui.secs[id] : defOpen;
+  return '<details class="sec" data-sec="' + id + '"' + (open ? ' open' : '') + '><summary class="sh">' + title + (summary ? '<span class="sum">' + summary + '</span>' : '') + '</summary><div class="sb">' + body + '</div></details>';
+}
 function row(cls, inner) { return '<div class="row ' + (cls || '') + '">' + inner + '</div>'; }
 function btn(label, act, extra) { return '<button data-act="' + act + '"' + (extra || '') + '>' + label + '</button>'; }
 
@@ -61,6 +66,7 @@ function readField(el) {
   if (el.type === 'text' && el.maxLength === 7) { var c = el.value.trim(); if (c[0] !== '#') c = '#' + c; return /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(c) ? (c.length === 4 ? '#' + c[1] + c[1] + c[2] + c[2] + c[3] + c[3] : c).toLowerCase() : undefined; }
   return el.value;
 }
+var arMemo = {}; // proportions captured at the first keystroke of a W/H edit
 function applyField(el, live) {
   var v = readField(el); if (v === undefined) return;
   var path = el.dataset.b;
@@ -69,6 +75,12 @@ function applyField(el, live) {
     var so = selObjs(); if (!so.length) return;
     so.forEach(function (o) {
       if (el.dataset.special === 'radius' && linkRadii) { o.radii = [v, v, v, v]; return; }
+      if ((path === 'w' || path === 'h') && aspectLocked(null, o) && o.w > 0 && o.h > 0) { // keep proportions from the size before this edit
+        var ar = arMemo[o.id] || (arMemo[o.id] = lockRatio(o, o.w, o.h));
+        if (path === 'w') { o.w = v; o.h = Math.max(1, ui.snap ? Math.round(v / ar) : v / ar); } else { o.h = v; o.w = Math.max(1, ui.snap ? Math.round(v * ar) : v * ar); }
+        if (!live) delete arMemo[o.id];
+        return;
+      }
       setPath(o, path, v);
     });
   }
@@ -85,6 +97,7 @@ function applyField(el, live) {
   }
 }
 var tb = $('#tabBody');
+tb.addEventListener('click', function (e) { var sm = e.target.closest('summary'), d = sm && sm.parentElement; if (d && d.dataset.sec) { ui.secs[d.dataset.sec] = !d.open; saveUi(); } });
 tb.addEventListener('input', function (e) { var el = e.target; if (!el.dataset.b || el.type === 'checkbox' || el.tagName === 'SELECT') return; applyField(el, true); });
 tb.addEventListener('change', function (e) { var el = e.target; if (!el.dataset.b) return; applyField(el, false); });
 tb.addEventListener('click', function (e) {
@@ -142,6 +155,7 @@ function selectionChanged(light) {
   var key = sel.join(',');
   if (key !== lastSelKey) { lastSelKey = key; buildTab(); }
   $$('#objList .orow').forEach(function (r) { r.classList.toggle('sel', sel.indexOf(r.dataset.id) >= 0); });
+  $('#alignGrp').classList.toggle('hidden', !sel.length);
   updateSelStatus();
   if (!light) draw();
 }

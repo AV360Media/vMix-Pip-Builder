@@ -26,7 +26,7 @@ Design the art that sits behind and in front of vMix source layers, export pixel
 
 
 1. Open `index.html`. Pick a canvas size at the top. The exact pixel size is always shown next to it.
-2. Press **T** for a template, or draw with the shape tools on the left.
+2. Click **Layouts…** (or press **T**) for a layout preset, or draw with the shape tools on the left. Background, sample frame, grid and safe areas are under **View**.
 3. Name each slot and set its source on the **vMix** tab: source input, source aspect, and Fit or Fill.
 4. Click **Export Pack**. You get a ZIP with:
    - `*_backplate.png`
@@ -159,12 +159,13 @@ Automated checks run on every test pack (1280×720, 1920×1080 and 3840×2160, p
 | Ctrl+] / Ctrl+[ | Forward / backward (add Shift for front / back) |
 | Ctrl+L / Ctrl+H | Lock / hide |
 | 1, 2, 3 | Back plate / front mask / combined view |
-| G / T / ? | Grid / templates / all shortcuts |
+| K | Lock / unlock box proportions |
+| G / T / ? | Grid / layout presets / all shortcuts |
 | Ctrl+0 / Ctrl+1 | Fit / 100% |
 | Ctrl+S / Ctrl+O / Ctrl+E | Save / open / Export Pack |
 
 Drag behaviour:
-- Shift-drag a corner keeps the aspect ratio.
+- **Ratio locked** (top bar, on by default): resizing a box keeps its shape, from a corner or a side, and new boxes are drawn 16:9. Click it, the lock between Width and Height, or press **K** to unlock. Hold Shift while dragging to do the opposite for one drag.
 - Alt-drag a handle resizes from the centre.
 - Snapping uses the pixel grid (1 to 40 px), the canvas centre and edges, safe areas, and the edges and centres of other objects.
 

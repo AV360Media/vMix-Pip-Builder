@@ -17,7 +17,7 @@ var doc = PIPE.newDoc(1920, 1080);
 var sel = [];               // selected object ids
 var tool = 'select';
 var tab = 'object';
-var ui = { view: 'combined', bg: 'checker', snap: true, grid: 1, showGrid: false, guides: true, safe: 'off', sources: true, sampleInSlots: false };
+var ui = { view: 'combined', bg: 'checker', snap: true, grid: 1, showGrid: false, guides: true, safe: 'off', sources: true, sampleInSlots: false, lockAspect: true, secs: {} };
 var session = { pass: '' };  // never saved
 var sampleImg = null, camStream = null;
 var linkRadii = true;

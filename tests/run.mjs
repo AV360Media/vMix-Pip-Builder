@@ -329,13 +329,59 @@ async function browserSuite(pw) {
     ok(await p.locator('#layoutsBtn').isVisible(), 'Layouts button visible in the top bar');
     await p.evaluate(() => __pip.loadTemplate(2)); await rendered();
     ok((await docOf()).objects.filter(o => o.slot).length === 4, '2 x 2 template loads 4 slots');
+    // ratio lock: on by default, resizing keeps the shape, Shift breaks it once, the toggle unlocks it, K flips it
+    ok(await p.evaluate(() => __pip.ui.lockAspect === true) && await p.locator('#lockArBtn.on').isVisible(), 'ratio lock is on by default and shown in the top bar');
+    const vbox = await p.locator('#view').boundingBox();
+    const scr = async (x, y) => { const v = await p.evaluate(() => ({ z: __pip.view.zoom, ox: __pip.view.ox, oy: __pip.view.oy })); return [vbox.x + v.ox + x * v.z, vbox.y + v.oy + y * v.z]; };
+    const slot1 = async () => (await docOf()).objects.find(o => o.slot && o.slotNum === 1);
+    const dragHandle = async (hx, hy, dx, dy, shift) => {
+      const [sx, sy] = await scr(hx, hy);
+      if (shift) await p.keyboard.down('Shift');
+      await p.mouse.move(sx, sy); await p.mouse.down(); await p.mouse.move(sx + dx, sy + dy, { steps: 8 }); await p.mouse.up();
+      if (shift) await p.keyboard.up('Shift');
+    };
+    let s1 = await slot1(); await p.evaluate(id => __pip.sel([id]), s1.id);
+    await dragHandle(s1.x + s1.w, s1.y + s1.h / 2, -150, 40);
+    let r1 = await slot1();
+    ok(r1.w < s1.w && Math.abs(r1.w / r1.h - 16 / 9) < 0.006 && [r1.x, r1.y, r1.w, r1.h].every(Number.isInteger) && Math.abs((r1.y + r1.h / 2) - (s1.y + s1.h / 2)) <= 0.5, `dragging a side handle while locked scales the box and keeps 16:9 (${s1.w}x${s1.h} -> ${r1.w}x${r1.h})`);
+    const pre = await slot1();
+    for (let i = 0; i < 6; i++) { const c = await slot1(); await dragHandle(c.x + c.w, c.y + c.h, i % 2 ? 37 : -29, i % 2 ? 11 : -23); }
+    r1 = await slot1();
+    ok(Math.abs(r1.w / r1.h - 16 / 9) < 0.006 && r1.x === pre.x && r1.y === pre.y, `six corner drags in a row keep 16:9 without drift and keep the opposite corner fixed (${r1.w}x${r1.h})`);
+    await dragHandle(r1.x + r1.w, r1.y + r1.h / 2, -120, 0, true);
+    let r2 = await slot1();
+    ok(r2.h === r1.h && r2.w < r1.w, `Shift + drag breaks the ratio for one drag (${r2.w}x${r2.h})`);
+    await p.keyboard.press('Control+z'); await p.click('#lockArBtn');
+    ok(await p.evaluate(() => __pip.ui.lockAspect === false) && (await p.locator('#lockArBtn').textContent()).includes('unlocked'), 'the top bar button unlocks the ratio');
+    r1 = await slot1(); await dragHandle(r1.x + r1.w / 2, r1.y + r1.h, 0, 60);
+    r2 = await slot1();
+    ok(r2.w === r1.w && r2.h > r1.h, `unlocked, a side handle changes one side only (${r2.w}x${r2.h})`);
+    await p.click('#tabs button[data-tab="object"]');
+    await p.fill('#tabBody input[data-b="w"]', '500'); await p.press('#tabBody input[data-b="w"]', 'Enter');
+    ok((await slot1()).w === 500 && (await slot1()).h === r2.h, 'unlocked, the W field leaves H alone');
+    await p.locator('#tabBody input[data-b="w"]').blur();
+    await p.keyboard.press('k');
+    ok(await p.evaluate(() => __pip.ui.lockAspect === true) && await p.locator('#tabBody button[data-lockar].on').count() === 1, 'K locks it again, and the lock beside W / H follows');
+    await p.reload(); await rendered();
+    ok(await p.evaluate(() => __pip.ui.lockAspect === true), 'the lock setting survives a reload');
+    await p.evaluate(async () => __pip.sel([__pip.doc.objects.find(o => o.slot).id])); await p.click('#tabs button[data-tab="object"]');
+    await p.click('#tabBody button[data-lockar]'); await p.waitForTimeout(100);
+    ok(await p.evaluate(() => __pip.ui.lockAspect === false) && !(await p.locator('#lockArBtn').getAttribute('class')).includes('on'), 'the lock beside W / H toggles the same setting');
+    await p.click('#lockArBtn');
+    // View menu holds the work area and guide options
+    ok(!(await p.locator('#bgMode').isVisible()), 'background options are tucked into the View menu');
+    await p.click('#viewMenuBtn'); ok(await p.locator('#bgMode').isVisible() && await p.locator('#safeMode').isVisible(), 'View menu opens');
+    await p.check('#showGrid'); ok(await p.locator('#viewMenu.open').count() === 1 && await p.evaluate(() => __pip.ui.showGrid), 'ticking an option keeps the menu open');
+    await p.uncheck('#showGrid'); await p.mouse.click(vbox.x + 5, vbox.y + vbox.height - 5); ok(await p.locator('#viewMenu.open').count() === 0, 'clicking away closes the View menu');
+    await p.evaluate(() => __pip.loadTemplate(2)); await rendered();
     const box = await p.locator('#view').boundingBox(), n0 = (await docOf()).objects.length;
     await p.keyboard.press('q');
     await p.mouse.move(box.x + 300, box.y + 300); await p.mouse.down(); await p.mouse.move(box.x + 420, box.y + 380, { steps: 6 }); await p.mouse.up();
     let d = await docOf(), last = d.objects[d.objects.length - 1];
     ok(d.objects.length === n0 + 1 && last.cornerStyle === 'squircle' && [last.x, last.y, last.w, last.h].every(Number.isInteger), `drawing a squircle snaps to whole pixels (${last.x},${last.y} ${last.w}x${last.h})`);
+    ok(Math.abs(last.w / last.h - 16 / 9) < 0.01, `with the ratio locked, a new box is drawn 16:9 (${last.w}x${last.h})`);
     await p.fill('#tabBody input[data-b="w"]', '640'); await p.press('#tabBody input[data-b="w"]', 'Enter');
-    ok((await docOf()).objects.at(-1).w === 640, 'numeric W field resizes the object');
+    ok((await docOf()).objects.at(-1).w === 640 && (await docOf()).objects.at(-1).h === 360, `numeric W field resizes the object and keeps 16:9 (${(await docOf()).objects.at(-1).h})`);
     await p.locator('#tabBody input[data-b="w"]').blur();
     const x0 = (await docOf()).objects.at(-1).x;
     await p.keyboard.press('Shift+ArrowRight'); await p.keyboard.press('ArrowRight'); await p.waitForTimeout(450);
@@ -346,6 +392,7 @@ async function browserSuite(pw) {
     await p.keyboard.press('Delete'); ok((await docOf()).objects.length === n0 + 1, 'delete');
     await p.evaluate(() => { const d = __pip.doc; __pip.sel([d.objects[d.objects.length - 1].id]); });
     await p.click('#tabs button[data-tab="style"]');
+    if (!(await p.locator('#cssShadow').isVisible())) await p.click('details[data-sec="stCss"] > summary');
     await p.fill('#cssShadow', '0 20px 60px rgba(0,0,0,.6), inset 0 2px 8px #00000080'); await p.click('[data-act="cssApply"]');
     last = (await docOf()).objects.at(-1);
     ok(last.style.shadows.length === 1 && last.style.shadows[0].blur === 60 && Math.abs(last.style.shadows[0].opacity - 0.6) < 1e-9 && last.style.innerShadows.length === 1, 'CSS box-shadow paste sets drop and inner shadows');
@@ -374,6 +421,7 @@ async function browserSuite(pw) {
     const directCount = vmixLog.length;
     ok(directCount > 10 && vmixLog.some(c => c.f === 'SetLayer' && c.v === '1,Cam A'), `direct send from the page reached vMix (${directCount} commands)`);
     auth = 'admin:secret';
+    if (!(await p.locator('#tabBody select[data-b="vmix.sendMode"]').isVisible())) await p.click('details[data-sec="vmConn"] > summary');
     await p.selectOption('#tabBody select[data-b="vmix.sendMode"]', 'relay');
     await p.fill('#tabBody input[data-b="vmix.user"]', 'admin'); await p.press('#tabBody input[data-b="vmix.user"]', 'Tab'); await p.fill('#vmPass', 'secret');
     vmixLog.length = 0; await p.click('[data-act="sendAll"]');
@@ -414,7 +462,7 @@ async function browserSuite(pw) {
     ok((await docOf()).canvas.w === 3840, 'autosave restores the session after reload');
     ok(await p.evaluate(k => localStorage.getItem(k), otherKey) === '{"sentinel":true}', 'the other build\'s autosave was not touched');
     // live camera in the slots
-    await p.selectOption('#bgMode', 'camera'); await p.check('#sampleInSlots');
+    await p.click('#viewMenuBtn'); await p.selectOption('#bgMode', 'camera'); await p.check('#sampleInSlots');
     await p.waitForFunction(() => document.getElementById('camVideo').readyState >= 2, null, { timeout: 10000 }).catch(() => { });
     ok(await p.evaluate(() => document.getElementById('camVideo').readyState >= 2), 'live camera preview runs');
     await p.screenshot({ path: join(OUT, 'screenshot.png') });

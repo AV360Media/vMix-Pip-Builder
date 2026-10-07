@@ -100,7 +100,11 @@ cvs.addEventListener('pointermove', function (e) {
   if (drag.kind === 'create') {
     var x1 = snapVal(p.x), y1 = snapVal(p.y), dx = x1 - drag.x0, dy = y1 - drag.y0;
     if (!drag.obj && Math.abs(dx) * view.zoom < 3 && Math.abs(dy) * view.zoom < 3) return;
-    if (e.shiftKey && drag.type !== 'line') { var m = Math.max(Math.abs(dx), Math.abs(dy)); dx = (dx < 0 ? -m : m); dy = (dy < 0 ? -m : m); }
+    var dar = drawAspect(drag.type, e);
+    if (dar) { // keep the box's shape: the larger drag axis wins
+      if (Math.abs(dx) / dar >= Math.abs(dy)) dy = (dy < 0 ? -1 : 1) * Math.abs(dx) / dar; else dx = (dx < 0 ? -1 : 1) * Math.abs(dy) * dar;
+      if (ui.snap) { dx = Math.round(dx); dy = (dy < 0 ? -1 : 1) * Math.round(Math.abs(dx) / dar); }
+    }
     var rx = dx < 0 ? drag.x0 + dx : drag.x0, ry = dy < 0 ? drag.y0 + dy : drag.y0, rw = Math.max(1, Math.abs(dx)), rh = Math.max(1, Math.abs(dy));
     if (!drag.obj) { drag.obj = createObject(drag.type, rx, ry, rw, rh); doc.objects.push(drag.obj); sel = [drag.obj.id]; selectionChanged(); }
     var ob = drag.obj; ob.x = rx; ob.y = ry; ob.w = rw; ob.h = rh;
@@ -141,18 +145,24 @@ cvs.addEventListener('pointermove', function (e) {
     if (h.indexOf('e') >= 0) Rr = Math.max(px, L + 1);
     if (h.indexOf('n') >= 0) T2 = Math.min(py, B - 1);
     if (h.indexOf('s') >= 0) B = Math.max(py, T2 + 1);
-    var nw = Rr - L, nh = B - T2;
-    if (e.shiftKey && h.length === 2) { // keep aspect on corner drags
-      var ar = st.w / st.h;
-      if (nw / nh > ar) nw = nh * ar; else nh = nw / ar;
-      if (h.indexOf('w') >= 0) L = Rr - nw; else Rr = L + nw;
-      if (h.indexOf('n') >= 0) T2 = B - nh; else B = T2 + nh;
-    }
+    var cx = st.x + st.w / 2, cy = st.y + st.h / 2;
     if (e.altKey) { // resize from centre
-      var cx = st.x + st.w / 2, cy = st.y + st.h / 2;
       var hw = Math.max(Math.abs(Rr - cx), Math.abs(L - cx)), hh = Math.max(Math.abs(B - cy), Math.abs(T2 - cy));
       if (h === 'n' || h === 's') hw = st.w / 2; if (h === 'e' || h === 'w') hh = st.h / 2;
       L = cx - hw; Rr = cx + hw; T2 = cy - hh; B = cy + hh;
+    }
+    if (aspectLocked(e, o2)) { // keep proportions: corners fit inside the pointer, edges scale the other side about its centre
+      var ar = lockRatio(o2, st.w, st.h), nw = Rr - L, nh = B - T2, byH = h === 'n' || h === 's';
+      if (h.length === 2) { byH = nw / nh > ar; if (byH) nw = nh * ar; else nh = nw / ar; }
+      else if (byH) nw = nh * ar; else nh = nw / ar;
+      if (ui.snap) { if (byH) { nh = Math.max(1, Math.round(nh)); nw = Math.max(1, Math.round(nh * ar)); } else { nw = Math.max(1, Math.round(nw)); nh = Math.max(1, Math.round(nw / ar)); } }
+      if (e.altKey) { L = cx - nw / 2; T2 = cy - nh / 2; }
+      else {
+        L = h.indexOf('w') >= 0 ? st.x + st.w - nw : h.indexOf('e') >= 0 ? st.x : cx - nw / 2;
+        T2 = h.indexOf('n') >= 0 ? st.y + st.h - nh : h.indexOf('s') >= 0 ? st.y : cy - nh / 2;
+      }
+      if (ui.snap) { L = Math.round(L); T2 = Math.round(T2); }
+      Rr = L + nw; B = T2 + nh;
     }
     o2.x = L; o2.y = T2; o2.w = Rr - L; o2.h = B - T2;
     drag.moved = true;
@@ -190,6 +200,23 @@ cvs.addEventListener('wheel', function (e) {
 
 // ---------------- object ops ----------------
 function nextSlotNum() { var m = 0; doc.objects.forEach(function (o) { if (o.slot) m = Math.max(m, o.slotNum || 0); }); return m + 1; }
+// Proportion lock (on by default). Shift flips it for the current drag. Lines never lock.
+function aspectLocked(e, o) { return (ui.lockAspect !== false) !== !!(e && e.shiftKey) && (!o || o.type !== 'line'); }
+// Ratio to hold while locked: a slot within 1 % of its source shape snaps to the exact source ratio, so 16:9 boxes don't drift after rounding.
+function lockRatio(o, w, h) {
+  var r = w / h, sa = o.slot ? PIPE.aspectOf(o.src) : 0;
+  return sa && Math.abs(r / sa - 1) < 0.01 ? sa : r;
+}
+function drawAspect(type, e) {
+  if (type === 'line') return 0;
+  if (type === 'rrect' || type === 'squircle') return aspectLocked(e) ? 16 / 9 : 0;
+  return e.shiftKey ? 1 : 0; // ellipse / rectangle: Shift draws a circle or square
+}
+function setLockAspect(on) {
+  ui.lockAspect = !!on; saveUi();
+  $$('[data-lockar]').forEach(function (b) { b.classList.toggle('on', ui.lockAspect); b.setAttribute('aria-pressed', ui.lockAspect); b.title = ui.lockAspect ? 'Proportions locked: resizing keeps the shape (hold Shift to break it for one drag). Click to unlock.' : 'Proportions unlocked: width and height change freely. Click to lock.'; });
+  $$('[data-lockar] .lt').forEach(function (t) { t.textContent = ui.lockAspect ? 'Ratio locked' : 'Ratio unlocked'; });
+}
 function createObject(type, x, y, w, h) {
   var t = type === 'squircle' ? 'rrect' : type;
   var o = PIPE.newObject(t, x, y, w, h);
@@ -296,6 +323,7 @@ document.addEventListener('keydown', function (e) {
   if (map[k.toLowerCase()]) { setTool(map[k.toLowerCase()]); return; }
   if (k === '1' || k === '2' || k === '3') { setView(['back', 'front', 'combined'][+k - 1]); return; }
   if (k === 't' || k === 'T') { openTemplates(); return; }
+  if (k === 'k' || k === 'K') { setLockAspect(!ui.lockAspect); toast(ui.lockAspect ? 'Proportions locked' : 'Proportions unlocked'); return; }
   if (k === 'g' || k === 'G') { ui.showGrid = !ui.showGrid; $('#showGrid').checked = ui.showGrid; saveUi(); draw(); return; }
   if (k === '?') { openHelp(); return; }
 });
@@ -305,7 +333,7 @@ var SHORTCUTS = [
   ['Arrows', 'Nudge 1 px'], ['Shift + Arrows', 'Nudge 10 px'], ['Ctrl+D', 'Duplicate'], ['Alt + drag', 'Duplicate while moving'], ['Del / Backspace', 'Delete'],
   ['Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y', 'Undo / redo'], ['Ctrl+A', 'Select all'], ['Shift + click', 'Add to selection'],
   ['Ctrl+] / Ctrl+[', 'Bring forward / send backward (add Shift: to front / back)'], ['Ctrl+L / Ctrl+H', 'Lock / hide'],
-  ['Shift + drag corner', 'Keep aspect ratio'], ['Alt + drag handle', 'Resize from centre'], ['Shift + drag', 'Constrain move to one axis'],
+  ['K', 'Lock / unlock box proportions'], ['Shift + resize', 'Break (or keep) proportions for one drag'], ['Alt + drag handle', 'Resize from centre'], ['Shift + drag', 'Constrain move to one axis'],
   ['1  2  3', 'View back plate / front mask / combined'], ['G', 'Toggle grid'], ['T', 'Templates'],
   ['Ctrl+0 / Ctrl+1', 'Fit / 100%'], ['Ctrl+ +/-, wheel', 'Zoom'], ['Ctrl+S / Ctrl+O', 'Save / open project'], ['Ctrl+E', 'Export Pack'], ['Esc', 'Deselect']
 ];

@@ -123,7 +123,6 @@ function syncCanvasUi() {
   ps.value = ['1920x1080', '3840x2160', '1280x720'].indexOf(key) >= 0 ? key : 'custom';
   $('#customWH').classList.toggle('hidden', ps.value !== 'custom');
   $('#cw').value = doc.canvas.w; $('#ch').value = doc.canvas.h;
-  $('#dims').textContent = doc.canvas.w + ' × ' + doc.canvas.h + ' px';
   $('#stCanvas').textContent = doc.canvas.w + '×' + doc.canvas.h;
 }
 $('#canvasPreset').addEventListener('change', function (e) {
@@ -233,9 +232,18 @@ function exportPack() {
 }
 $('#exportMenuBtn').addEventListener('click', function (e) {
   var m = $('#exportMenu'), r = e.target.getBoundingClientRect();
+  $('#viewMenu').classList.remove('open');
   m.style.left = Math.min(r.left, window.innerWidth - 240) + 'px'; m.style.top = (r.bottom + 4) + 'px'; m.classList.toggle('open'); e.stopPropagation();
 });
-document.addEventListener('click', function () { $('#exportMenu').classList.remove('open'); });
+$('#viewMenuBtn').addEventListener('click', function (e) {
+  var m = $('#viewMenu'), r = e.target.getBoundingClientRect();
+  $('#exportMenu').classList.remove('open');
+  m.style.left = Math.max(4, Math.min(r.left, window.innerWidth - 310)) + 'px'; m.style.top = (r.bottom + 4) + 'px'; m.classList.toggle('open'); e.stopPropagation();
+});
+$('#viewMenu').addEventListener('click', function (e) { e.stopPropagation(); });
+document.addEventListener('click', function () { $('#exportMenu').classList.remove('open'); $('#viewMenu').classList.remove('open'); });
+document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { $('#exportMenu').classList.remove('open'); $('#viewMenu').classList.remove('open'); } });
+$('#lockArBtn').addEventListener('click', function () { setLockAspect(!ui.lockAspect); });
 $('#exportMenu').addEventListener('click', function (e) {
   var b = e.target.closest('[data-exp]'); if (!b) return;
   var k = b.dataset.exp;
@@ -312,7 +320,6 @@ function setTool(t) { tool = t; $$('#tools [data-tool]').forEach(function (b) { 
 function setView(v) { ui.view = v; $$('#viewSeg button').forEach(function (b) { b.classList.toggle('on', b.dataset.view === v); }); saveUi(); draw(); }
 $$('#tools [data-tool]').forEach(function (b) { b.addEventListener('click', function () { setTool(b.dataset.tool); }); });
 $$('#tools [data-align]').forEach(function (b) { b.addEventListener('click', function () { align(b.dataset.align); }); });
-$('#tplBtn').addEventListener('click', openTemplates);
 $('#layoutsBtn').addEventListener('click', openTemplates);
 $('#dupBtn').addEventListener('click', function () { duplicate(20, 20); });
 $('#delBtn').addEventListener('click', deleteSel);
@@ -355,6 +362,8 @@ function buildAll() { syncCanvasUi(); buildObjList(); lastSelKey = '?'; selectio
   if (ui.bg === 'sample' || ui.bg === 'camera') ui.bg = 'checker';
   $('#bgMode').value = ui.bg; $('#gridSize').value = String(ui.grid); $('#safeMode').value = ui.safe;
   ['#snapOn', '#showGrid', '#showGuides', '#showSources', '#sampleInSlots'].forEach(function (id, i) { $(id).checked = !!ui[['snap', 'showGrid', 'guides', 'sources', 'sampleInSlots'][i]]; });
+  if (!ui.secs || typeof ui.secs !== 'object') ui.secs = {};
+  setLockAspect(ui.lockAspect !== false);
   var restored = false, auto = lsGet(LS_AUTO);
   if (auto) { try { doc = PIPE.migrate(JSON.parse(auto)); restored = true; } catch (e) { } }
   if (!restored) { doc = PIPE.newDoc(1920, 1080); doc.objects = templateObjects(TEMPLATES[1]); }
@@ -366,5 +375,5 @@ function buildAll() { syncCanvasUi(); buildObjList(); lastSelKey = '?'; selectio
   requestRender(false);
   if (restored) toast('Restored your last session from autosave');
   // test hooks (used by the automated checks; harmless otherwise)
-  window.__pip = { testBuild: TESTBUILD, keys: { auto: LS_AUTO, presets: LS_PRESETS, ui: LS_UI }, get doc() { return doc; }, set doc(d) { doc = PIPE.migrate(d); commit(); buildAll(); }, sel: function (ids) { sel = ids; selectionChanged(); }, render: R, exportPack: exportPack, undo: undo, redo: redo, hist: hist, setCanvasSize: setCanvasSize, loadTemplate: function (i) { loadTemplate(TEMPLATES[i]); }, templates: TEMPLATES.map(function (t) { return t.name; }), view: view };
+  window.__pip = { testBuild: TESTBUILD, get ui() { return ui; }, setLockAspect: setLockAspect, keys: { auto: LS_AUTO, presets: LS_PRESETS, ui: LS_UI }, get doc() { return doc; }, set doc(d) { doc = PIPE.migrate(d); commit(); buildAll(); }, sel: function (ids) { sel = ids; selectionChanged(); }, render: R, exportPack: exportPack, undo: undo, redo: redo, hist: hist, setCanvasSize: setCanvasSize, loadTemplate: function (i) { loadTemplate(TEMPLATES[i]); }, templates: TEMPLATES.map(function (t) { return t.name; }), view: view };
 })();
