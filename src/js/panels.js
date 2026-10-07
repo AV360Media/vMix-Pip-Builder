@@ -14,6 +14,12 @@ function buildTab() {
 }
 function noSel(msg) { return '<p class="note">' + (msg || 'Click a box on the canvas, or in the list above, to edit it.') + '</p>' + '<p class="note">Start from <b>Layouts…</b> in the top bar (T), or draw a box with the tools on the left.</p>'; }
 var LOCK_SVG = '<svg class="lk-on" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V8a4 4 0 018 0v3"/></svg><svg class="lk-off" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V8a4 4 0 017.5-2"/></svg>';
+function shapeField() {
+  var so = selObjs().filter(function (o) { return o.type !== 'line'; }), k = so.length ? shapeKey(so[0]) : '';
+  var mixed = so.some(function (o) { return shapeKey(o) !== k; });
+  return '<div class="f"><label>Shape</label><select id="shapeSel" title="Change the shape of the selected box">' + (mixed ? '<option value="" selected>Mixed</option>' : '') +
+    SHAPES.map(function (x) { return '<option value="' + x[0] + '"' + (!mixed && x[0] === k ? ' selected' : '') + '>' + x[1] + '</option>'; }).join('') + '</select></div>';
+}
 function lockArBtn() { return '<div class="f"><label>&nbsp;</label><button class="tog' + (ui.lockAspect ? ' on' : '') + '" data-lockar data-act="lockAr" aria-pressed="' + !!ui.lockAspect + '">' + LOCK_SVG + '<span class="lt"></span></button></div>'; }
 
 function tabObject() {
@@ -21,6 +27,7 @@ function tabObject() {
   var multi = sel.length > 1, h = '', cq = PIPE.cropOf(o.src), asp = o.src.aspect === 'custom' || cq.l || cq.t || cq.r || cq.b ? 'source' : o.src.aspect;
   h += sec(multi ? sel.length + ' objects selected' : o.slot ? 'Video slot' : 'Decoration',
     row('c2', fTxt('Name', 'name') + (o.slot ? fNum('Slot number', 'slotNum', { min: 0, max: 99 }) : fSel('Drawn on', 'plane', [['back', 'Back plate (behind video)'], ['front', 'Front mask (over video)']], { rebuild: 1 }))) +
+    (o.type !== 'line' ? row('c2', shapeField() + (o.type === 'rrect' ? fNum('Corner radius', 'radii.0', { min: 0, special: 'radiusAll', title: 'All four corners. Set them one by one in Corners below.' }) : '<span></span>')) : '') +
     fChk('A vMix source sits here' + (o.slot ? ' (layer ' + PIPE.layerOf(doc, o) + ')' : ''), 'slot', { rebuild: 1, title: 'Untick for a decoration: a shape that gets no vMix layer.' }));
   h += sec('Size and position', row('sizerow', fNum('Width', 'w', { step: 1, min: 1 }) + lockArBtn() + fNum('Height', 'h', { step: 1, min: 1 })) +
     row('c2', fNum('X (left)', 'x', { step: 1 }) + fNum('Y (top)', 'y', { step: 1 })) +
@@ -35,11 +42,11 @@ function tabObject() {
       !!(anyCrop || isCrop), anyCrop ? 'cropped' : 'none');
   }
   if (o.type === 'rrect') {
-    h += sec('Corners', row('', fNum('Top L', 'radii.0', { min: 0, special: 'radius' }) + fNum('Top R', 'radii.1', { min: 0, special: 'radius' }) + fNum('Bot R', 'radii.2', { min: 0, special: 'radius' }) + fNum('Bot L', 'radii.3', { min: 0, special: 'radius' })) +
-      row('c3', '<label class="f inline"><input type="checkbox" id="linkR"' + (linkRadii ? ' checked' : '') + '>Link corners</label>' + fSel('Corner shape', 'cornerStyle', [['round', 'Circular'], ['squircle', 'Squircle']], { rebuild: 1 }) + (o.cornerStyle === 'squircle' ? fNum('Smoothness', 'smooth', { min: 2, max: 12, step: 0.5, title: '2 = circular, 4-5 = squircle, higher = squarer' }) : '')));
+    h += csec('obCorners', 'Corners', row('', fNum('Top L', 'radii.0', { min: 0, special: 'radius' }) + fNum('Top R', 'radii.1', { min: 0, special: 'radius' }) + fNum('Bot R', 'radii.2', { min: 0, special: 'radius' }) + fNum('Bot L', 'radii.3', { min: 0, special: 'radius' })) +
+      row('c2', '<label class="f inline"><input type="checkbox" id="linkR"' + (linkRadii ? ' checked' : '') + '>Link corners</label>' + (o.cornerStyle === 'squircle' ? fNum('Smoothness', 'smooth', { min: 2, max: 12, step: 0.5, title: '2 = circular, 4-5 = squircle, higher = squarer' }) : '<span></span>')),
+      o.cornerStyle === 'squircle' || o.radii.some(function (r) { return r !== o.radii[0]; }), o.radii.every(function (r) { return r === o.radii[0]; }) ? fmt(o.radii[0]) + ' px' : 'mixed');
   }
   if (o.type === 'line') h += sec('Line', row('c2', fSel('Ends', 'caps', [['butt', 'Square'], ['round', 'Round']])) + '<div class="note">Thickness is the shorter of width and height.</div>');
-  if (o.type === 'ellipse') h += sec('Ellipse', btn('Make circle (W = H)', 'circle'));
   return h;
 }
 

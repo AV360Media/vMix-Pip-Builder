@@ -27,7 +27,7 @@ Design the art that sits behind and in front of vMix source layers, export pixel
 
 1. Open `index.html`. Pick a canvas size at the top. The exact pixel size is always shown next to it.
 2. Click **Layouts…** (or press **T**) for a layout preset, or draw with the shape tools on the left. Background, sample frame, grid and safe areas are under **View**.
-3. Name each slot and set its source on the **vMix** tab: source input, source aspect, and Fit or Fill.
+3. Select a box to change its **Shape** (rectangle, rounded corners, squircle, ellipse or circle) and corner radius at the top of the Object tab. Name each slot and set its source on the **vMix** tab: source input, source aspect, and Fit or Fill.
 4. Click **Export Pack**. You get a ZIP with:
    - `*_backplate.png`
    - `*_frontmask.png`

@@ -74,7 +74,7 @@ function applyField(el, live) {
   else {
     var so = selObjs(); if (!so.length) return;
     so.forEach(function (o) {
-      if (el.dataset.special === 'radius' && linkRadii) { o.radii = [v, v, v, v]; return; }
+      if (el.dataset.special === 'radius' && linkRadii || el.dataset.special === 'radiusAll') { o.radii = [v, v, v, v]; return; }
       if (el.dataset.special === 'crop') { // move just that edge over the fixed picture
         var P = sourceRect(o), side = path.slice(-1), bx = { x: o.x, y: o.y, w: o.w, h: o.h };
         if (side === 'l') { var R = bx.x + bx.w; bx.x = Math.min(P.x + v * P.w, R - 8); bx.w = R - bx.x; }
@@ -95,7 +95,7 @@ function applyField(el, live) {
   }
   // keep twin colour inputs in step
   $$('#tabBody [data-b="' + path + '"]').forEach(function (t) { if (t !== el && t.type !== 'number' && t.type !== 'checkbox') t.value = v; });
-  if (el.dataset.special === 'radius' && linkRadii || el.dataset.special === 'crop') syncFields();
+  if (el.dataset.special === 'radius' && linkRadii || el.dataset.special === 'radiusAll' || el.dataset.special === 'crop') syncFields();
   if (live) { requestRender(true); draw(); refreshComputed(); }
   else {
     if (path === 'name' || path === 'slot' || path === 'slotNum' || path === 'plane') buildObjList();
@@ -109,6 +109,11 @@ var tb = $('#tabBody');
 tb.addEventListener('click', function (e) { var sm = e.target.closest('summary'), d = sm && sm.parentElement; if (d && d.dataset.sec) { ui.secs[d.dataset.sec] = !d.open; saveUi(); } });
 tb.addEventListener('input', function (e) { var el = e.target; if (!el.dataset.b || el.type === 'checkbox' || el.tagName === 'SELECT') return; applyField(el, true); });
 tb.addEventListener('change', function (e) { var el = e.target; if (!el.dataset.b) return; applyField(el, false); });
+tb.addEventListener('change', function (e) {
+  if (e.target.id !== 'shapeSel' || !e.target.value) return;
+  selObjs().forEach(function (o) { setShape(o, e.target.value); });
+  commit(); buildObjList(); buildTab(); draw();
+});
 tb.addEventListener('click', function (e) {
   var b = e.target.closest('[data-act]'); if (!b) return;
   var fn = ACTIONS[b.dataset.act]; if (fn) fn(b);
@@ -116,6 +121,32 @@ tb.addEventListener('click', function (e) {
 
 // ---------------- object list ----------------
 var TYPE_LABEL = { rrect: 'Rounded', ellipse: 'Ellipse', rect: 'Rect', line: 'Line' };
+// ---------------- shape switching ----------------
+var SHAPES = [['rect', 'Rectangle'], ['rounded', 'Rounded corners'], ['squircle', 'Squircle'], ['ellipse', 'Ellipse'], ['circle', 'Circle']];
+function shapeKey(o) {
+  if (o.type === 'line') return 'line';
+  if (o.type === 'rect') return 'rect';
+  if (o.type === 'ellipse') return Math.abs(o.w - o.h) < 0.5 ? 'circle' : 'ellipse';
+  if (o.cornerStyle === 'squircle') return 'squircle';
+  return o.radii.some(function (r) { return r > 0; }) ? 'rounded' : 'rect';
+}
+function shapeLabel(o) { var k = shapeKey(o); return k === 'line' ? 'Line' : k === 'rect' ? 'Rect' : k === 'rounded' ? 'Rounded' : k === 'squircle' ? 'Squircle' : k === 'circle' ? 'Circle' : 'Ellipse'; }
+// Change an object's shape in place. Corner radii are kept on the object, so switching back restores them.
+function setShape(o, k) {
+  if (o.type === 'line') return;
+  var noR = !o.radii.some(function (r) { return r > 0; }), m = Math.min(o.w, o.h);
+  if (k === 'rect') o.type = 'rect';
+  else if (k === 'rounded' || k === 'squircle') {
+    o.type = 'rrect'; o.cornerStyle = k === 'squircle' ? 'squircle' : 'round';
+    if (k === 'squircle' && (+o.smooth || 0) < 4) o.smooth = 5;
+    if (noR) { var r = Math.round(k === 'squircle' ? m * 0.2 : Math.max(4, 24 * doc.canvas.h / 1080)); o.radii = [r, r, r, r]; }
+  } else if (k === 'ellipse') o.type = 'ellipse';
+  else if (k === 'circle') {
+    var cx = o.x + o.w / 2, cy = o.y + o.h / 2;
+    o.type = 'ellipse'; o.w = o.h = m; o.x = cx - m / 2; o.y = cy - m / 2;
+    if (ui.snap) { o.x = Math.round(o.x); o.y = Math.round(o.y); }
+  }
+}
 function buildObjList() {
   var L = $('#objList'), html = '';
   for (var i = doc.objects.length - 1; i >= 0; i--) {
@@ -124,7 +155,7 @@ function buildObjList() {
       '<span class="ic' + (o.hidden ? '' : ' act') + '" data-t="hidden" title="Show / hide">' + (o.hidden ? '◌' : '●') + '</span>' +
       '<span class="ic' + (o.locked ? ' act' : '') + '" data-t="locked" title="Lock">' + (o.locked ? '🔒' : '○') + '</span>' +
       (o.slot ? '<span class="badge" title="Video slot, vMix layer ' + PIPE.layerOf(doc, o) + '">' + (o.slotNum || '·') + '·L' + PIPE.layerOf(doc, o) + '</span>' : '<span class="badge deco" title="Decoration on the ' + (o.plane === 'front' ? 'front mask' : 'back plate') + '">' + (o.plane === 'front' ? 'FR' : 'BK') + '</span>') +
-      '<span class="oname" title="Double-click to rename">' + esc(o.name || TYPE_LABEL[o.type]) + '</span><span class="note">' + TYPE_LABEL[o.type] + '</span></div>';
+      '<span class="oname" title="Double-click to rename">' + esc(o.name || shapeLabel(o)) + '</span><span class="note">' + shapeLabel(o) + '</span></div>';
   }
   L.innerHTML = html || '<div class="note" style="padding:6px 8px">No objects. Pick a shape tool or a template (T).</div>';
 }
@@ -173,5 +204,5 @@ function updateSelStatus() {
   var so = selObjs(), el = $('#stSel');
   if (!so.length) { el.innerHTML = ''; return; }
   if (so.length > 1) { var bb = bboxOf(so); el.innerHTML = 'Sel <b>' + so.length + ' objects</b> ' + fmt(bb.w, 1) + '×' + fmt(bb.h, 1) + ' @ ' + fmt(bb.x, 1) + ',' + fmt(bb.y, 1); return; }
-  var o = so[0]; el.innerHTML = 'Sel <b>' + esc(o.name || TYPE_LABEL[o.type]) + '</b> ' + fmt(o.w, 2) + '×' + fmt(o.h, 2) + ' @ ' + fmt(o.x, 2) + ',' + fmt(o.y, 2);
+  var o = so[0]; el.innerHTML = 'Sel <b>' + esc(o.name || shapeLabel(o)) + '</b> ' + fmt(o.w, 2) + '×' + fmt(o.h, 2) + ' @ ' + fmt(o.x, 2) + ',' + fmt(o.y, 2);
 }

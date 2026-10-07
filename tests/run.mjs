@@ -431,6 +431,29 @@ async function browserSuite(pw) {
     await p.click('#tabBody [data-act="cropReset"]');
     c3 = await slot1();
     ok(c3.src.crop.l === 0 && c3.src.crop.r === 0 && c3.src.crop.t === 0 && c3.w === c1.w && c3.h === c1.h && c3.x === Math.round(picR.x) && c3.y === Math.round(picR.y), `Remove crop grows the box back to the whole picture where it sits (${c3.w}x${c3.h} at ${c3.x},${c3.y})`);
+    // Shape dropdown on the Object tab switches the selected box between shapes
+    await p.evaluate(() => __pip.loadTemplate(2)); await rendered();
+    let sh = await slot1(); await p.evaluate(id => __pip.sel([id]), sh.id); await p.click('#tabs button[data-tab="object"]');
+    ok(await p.locator('#shapeSel').inputValue() === 'rounded', 'Shape dropdown shows the selected box\'s shape');
+    const shapeTo = async v => { await p.selectOption('#shapeSel', v); await rendered(); return slot1(); };
+    let s2 = await shapeTo('rect');
+    ok(s2.type === 'rect' && s2.slot && s2.w === sh.w && s2.x === sh.x, 'Rectangle: square corners, still a video slot, same size');
+    s2 = await shapeTo('squircle');
+    ok(s2.type === 'rrect' && s2.cornerStyle === 'squircle' && s2.radii.join() === sh.radii.join(), 'Squircle keeps the corner radii');
+    s2 = await shapeTo('ellipse');
+    ok(s2.type === 'ellipse' && s2.w === sh.w && s2.h === sh.h, 'Ellipse fills the same box');
+    s2 = await shapeTo('circle');
+    ok(s2.type === 'ellipse' && s2.w === s2.h && s2.w === sh.h && Math.abs(s2.x + s2.w / 2 - (sh.x + sh.w / 2)) <= 0.5, `Circle makes width = height about the same centre (${s2.w}x${s2.h})`);
+    ok(await p.locator('#objList .orow.sel .note').textContent() === 'Circle', 'the object list names the new shape');
+    s2 = await shapeTo('rounded');
+    ok(s2.type === 'rrect' && s2.cornerStyle === 'round' && s2.radii.join() === sh.radii.join(), 'switching back to Rounded restores the corners');
+    await p.fill('#tabBody input[data-special="radiusAll"]', '60'); await p.press('#tabBody input[data-special="radiusAll"]', 'Enter');
+    ok((await slot1()).radii.join() === '60,60,60,60', 'Corner radius sets all four corners');
+    await p.locator('#tabBody input[data-special="radiusAll"]').blur();
+    await p.keyboard.press('Control+a'); await p.click('#tabs button[data-tab="object"]');
+    await p.selectOption('#shapeSel', 'rect'); await rendered();
+    ok((await docOf()).objects.filter(o => o.slot).every(o => o.type === 'rect'), 'with several boxes selected, Shape changes them all');
+    await p.keyboard.press('Control+z'); await p.keyboard.press('Escape');
     // New project: one click, blank, undo brings the old one back
     const before = (await docOf()).objects.length;
     await p.click('#newBtn');
