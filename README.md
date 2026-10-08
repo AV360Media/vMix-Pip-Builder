@@ -2,8 +2,8 @@
 
 Design the art that sits behind and in front of vMix source layers, export pixel-exact transparent PNGs, and get the vMix layer values and API commands for every slot.
 
-- **Production:** https://bryanchorton.github.io/vMix-Pip-Builder/
-- **Test build:** https://bryanchorton.github.io/vMix-Pip-Builder/index.test.html
+- **Production:** https://av360media.github.io/vMix-Pip-Builder/
+- **Test build:** https://av360media.github.io/vMix-Pip-Builder/index.test.html
 
 (Both work once GitHub Pages is on: Settings > Pages > Source: GitHub Actions.) You can also download `index.html` and open it in Chrome or Edge; it is one file, works offline and has no dependencies.
 
